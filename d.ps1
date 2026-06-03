@@ -14,7 +14,7 @@ function Add-CacheBust([string]$Url) {
     }
 
     $cacheBust = [System.Guid]::NewGuid().ToString("N")
-    if ($Url -like "*?*") {
+    if ($Url.Contains("?")) {
         return "$Url&cb=$cacheBust"
     }
     return "$Url?cb=$cacheBust"

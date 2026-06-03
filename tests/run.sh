@@ -669,6 +669,8 @@ test_desktop_powershell_static_checks() {
   assert_contains "$DESKTOP_PS" '[char]34 + $ImageHelperPath + [char]34' 'PowerShell setup builds quoted helper example without escaped quotes or format placeholders'
   assert_contains "$DESKTOP_BOOTSTRAP_PS" 'setup-neurogate-codex-desktop.ps1' 'PowerShell bootstrap points to desktop setup'
   assert_contains "$DESKTOP_BOOTSTRAP_PS" 'Add-CacheBust' 'PowerShell bootstrap cache-busts downloaded setup'
+  assert_contains "$DESKTOP_BOOTSTRAP_PS" '.Contains("?")' 'PowerShell bootstrap detects existing query strings literally'
+  assert_not_contains_file "$DESKTOP_BOOTSTRAP_PS" '-like "*?*"' 'PowerShell bootstrap does not use wildcard query detection'
   assert_contains "$DESKTOP_BOOTSTRAP_PS" '[System.Net.SecurityProtocolType]::Tls12' 'PowerShell bootstrap enables TLS 1.2 when available'
   assert_contains "$DESKTOP_BOOTSTRAP_PS" 'Test-Path -LiteralPath $Url' 'PowerShell bootstrap supports local setup override paths'
   assert_contains "$DESKTOP_BOOTSTRAP_PS" 'User-Agent' 'PowerShell bootstrap sends a stable user agent'

@@ -671,6 +671,13 @@ test_desktop_powershell_static_checks() {
   assert_contains "$DESKTOP_BOOTSTRAP_PS" 'Add-CacheBust' 'PowerShell bootstrap cache-busts downloaded setup'
   assert_contains "$DESKTOP_BOOTSTRAP_PS" '.Contains("?")' 'PowerShell bootstrap detects existing query strings literally'
   assert_not_contains_file "$DESKTOP_BOOTSTRAP_PS" '-like "*?*"' 'PowerShell bootstrap does not use wildcard query detection'
+  assert_contains "$DESKTOP_BOOTSTRAP_PS" '$Url + "?cb=" + $cacheBust' 'PowerShell bootstrap appends cache-bust query by concatenation'
+  assert_not_contains_file "$DESKTOP_BOOTSTRAP_PS" '$Url?cb=$cacheBust' 'PowerShell bootstrap does not interpolate URL before ?cb'
+  assert_contains "$DESKTOP_BOOTSTRAP_PS" 'Resolve-SetupSource $setupUrlCandidate $defaultSetupUrl' 'PowerShell bootstrap resolves setup source before download'
+  assert_contains "$DESKTOP_BOOTSTRAP_PS" 'Ignoring invalid NEUROGATE_CODEX_DESKTOP_SETUP_URL value' 'PowerShell bootstrap ignores invalid setup URL overrides'
+  assert_contains "$DESKTOP_BOOTSTRAP_PS" 'NeuroGate setup source is neither an http(s) URL nor an existing file' 'PowerShell bootstrap rejects non-URL non-file setup sources'
+  assert_contains "$DESKTOP_BOOTSTRAP_PS" 'Test-Path -LiteralPath $value -PathType Leaf' 'PowerShell bootstrap accepts existing local setup override files'
+  assert_not_contains_file "$DESKTOP_BOOTSTRAP_PS" 'if (Test-Path -LiteralPath $Url) {' 'PowerShell bootstrap does not test URL as a local path before URL validation'
   assert_contains "$DESKTOP_BOOTSTRAP_PS" '[System.Net.SecurityProtocolType]::Tls12' 'PowerShell bootstrap enables TLS 1.2 when available'
   assert_contains "$DESKTOP_BOOTSTRAP_PS" 'Test-Path -LiteralPath $Url' 'PowerShell bootstrap supports local setup override paths'
   assert_contains "$DESKTOP_BOOTSTRAP_PS" 'User-Agent' 'PowerShell bootstrap sends a stable user agent'
@@ -707,11 +714,12 @@ test_desktop_powershell_static_checks() {
   fi
 
   if command -v pwsh >/dev/null 2>&1; then
-    if pwsh -NoProfile -Command '
+    if PS_TEST_PATH="$DESKTOP_PS" pwsh -NoProfile -Command '
+      $path = $env:PS_TEST_PATH
       $errors = $null
-      [System.Management.Automation.PSParser]::Tokenize((Get-Content -Raw $args[0]), [ref]$errors) | Out-Null
+      [System.Management.Automation.PSParser]::Tokenize((Get-Content -Raw $path), [ref]$errors) | Out-Null
       if ($errors.Count) { $errors | ForEach-Object { Write-Error $_ }; exit 1 }
-    ' "$DESKTOP_PS"; then
+    '; then
       pass 'PowerShell setup parses with pwsh'
     else
       fail 'PowerShell setup parses with pwsh'
@@ -779,6 +787,40 @@ test_desktop_powershell_wsl_embedded_script() {
   assert_not_contains_text "$output" 'test-api-key' 'PowerShell WSL script does not print API key'
 
   rm -rf "$tmp"
+}
+
+test_desktop_powershell_bootstrap_url_resolution() {
+  local output
+  if ! command -v pwsh >/dev/null 2>&1; then
+    pass 'PowerShell bootstrap URL resolution check skipped without pwsh'
+    return
+  fi
+
+  if output="$(PS_BOOTSTRAP_PATH="$DESKTOP_BOOTSTRAP_PS" pwsh -NoProfile -Command '
+    $script = Get-Content -Raw $env:PS_BOOTSTRAP_PATH
+    $marker = "try {`n    `$setupUrl = Resolve-SetupSource"
+    $idx = $script.IndexOf($marker)
+    if ($idx -lt 0) { throw "bootstrap execution marker not found" }
+    Invoke-Expression $script.Substring(0, $idx)
+
+    $default = "https://example.test/setup.ps1"
+    $bad = Resolve-SetupSource "=85270456b1154ba39fb139bf7d8bcfdf" $default
+    $remote = Resolve-SetupSource "https://example.test/setup.ps1" $default
+    $noQuery = Add-CacheBust "https://example.test/setup.ps1"
+    $withQuery = Add-CacheBust "https://example.test/setup.ps1?x=1"
+
+    if ($bad -ne $default) { throw "bad override did not fall back: $bad" }
+    if ($remote -ne "https://example.test/setup.ps1") { throw "remote URL changed: $remote" }
+    if ($noQuery -notmatch "\?cb=") { throw "URL without query did not use ?cb=: $noQuery" }
+    if ($noQuery -match "\.ps1&cb=") { throw "URL without query used &cb=: $noQuery" }
+    if ($withQuery -notmatch "\?x=1&cb=") { throw "URL with query did not use &cb=: $withQuery" }
+    "ok"
+  ' 2>&1)"; then
+    pass 'PowerShell bootstrap URL resolution handles invalid overrides and cache-busts'
+  else
+    printf '%s\n' "$output" >&2
+    fail 'PowerShell bootstrap URL resolution handles invalid overrides and cache-busts'
+  fi
 }
 
 test_pipe_safe_prompt_static_checks() {
@@ -1085,6 +1127,7 @@ test_desktop_api_check_reports_safe_details
 test_desktop_bootstrap_downloads_and_runs_setup
 test_desktop_powershell_static_checks
 test_desktop_powershell_wsl_embedded_script
+test_desktop_powershell_bootstrap_url_resolution
 test_pipe_safe_prompt_static_checks
 test_desktop_interactive_prompt_reads_from_tty
 test_requires_key_when_non_interactive

@@ -1,9 +1,10 @@
 $ErrorActionPreference = "Stop"
 
-$setupUrl = if ($env:NEUROGATE_CODEX_DESKTOP_SETUP_URL) {
+$defaultSetupUrl = "https://raw.githubusercontent.com/OlegGorsky/neurogate-codex-termux/main/setup-neurogate-codex-desktop.ps1"
+$setupUrlCandidate = if ($env:NEUROGATE_CODEX_DESKTOP_SETUP_URL) {
     $env:NEUROGATE_CODEX_DESKTOP_SETUP_URL
 } else {
-    "https://raw.githubusercontent.com/OlegGorsky/neurogate-codex-termux/main/setup-neurogate-codex-desktop.ps1"
+    $defaultSetupUrl
 }
 
 $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("neurogate-codex-desktop-" + [System.Guid]::NewGuid().ToString("N") + ".ps1")
@@ -15,9 +16,27 @@ function Add-CacheBust([string]$Url) {
 
     $cacheBust = [System.Guid]::NewGuid().ToString("N")
     if ($Url.Contains("?")) {
-        return "$Url&cb=$cacheBust"
+        return ($Url + "&cb=" + $cacheBust)
     }
-    return "$Url?cb=$cacheBust"
+    return ($Url + "?cb=" + $cacheBust)
+}
+
+function Test-HttpUrl([string]$Url) {
+    return ($Url -match '^https?://')
+}
+
+function Resolve-SetupSource([string]$Candidate, [string]$DefaultUrl) {
+    $value = if ($Candidate) { $Candidate.Trim() } else { "" }
+    if ($value -and (Test-HttpUrl $value)) {
+        return $value
+    }
+    if ($value -and (Test-Path -LiteralPath $value -PathType Leaf)) {
+        return (Resolve-Path -LiteralPath $value).Path
+    }
+    if ($value -and $value -ne $DefaultUrl) {
+        Write-Warning ("Ignoring invalid NEUROGATE_CODEX_DESKTOP_SETUP_URL value: " + $value)
+    }
+    return $DefaultUrl
 }
 
 function Enable-Tls12 {
@@ -28,7 +47,14 @@ function Enable-Tls12 {
 }
 
 function Get-SetupBytes([string]$Url) {
-    if (Test-Path -LiteralPath $Url) {
+    if (-not $Url) {
+        throw "NeuroGate setup source is empty."
+    }
+
+    if (-not (Test-HttpUrl $Url)) {
+        if (-not (Test-Path -LiteralPath $Url -PathType Leaf)) {
+            throw ("NeuroGate setup source is neither an http(s) URL nor an existing file: " + $Url)
+        }
         return [System.IO.File]::ReadAllBytes((Resolve-Path -LiteralPath $Url).Path)
     }
 
@@ -113,6 +139,7 @@ function Resolve-SetupPowerShell {
 }
 
 try {
+    $setupUrl = Resolve-SetupSource $setupUrlCandidate $defaultSetupUrl
     Save-SetupScript $setupUrl $tmp
     Test-SetupScriptSyntax $tmp
     try {

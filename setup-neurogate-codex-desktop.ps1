@@ -15,10 +15,11 @@ $ErrorActionPreference = "Stop"
 $ProviderName = "NeuroGate API"
 $BaseUrl = "https://api.neurogate.space/v1"
 $DefaultReasoningEffort = "medium"
-$ImageHelperUrl = if ($env:NEUROGATE_IMAGE_HELPER_URL) {
+$DefaultImageHelperUrl = "https://raw.githubusercontent.com/OlegGorsky/neurogate-codex-termux/main/scripts/responses_image.py"
+$ImageHelperSourceCandidate = if ($env:NEUROGATE_IMAGE_HELPER_URL) {
     $env:NEUROGATE_IMAGE_HELPER_URL
 } else {
-    "https://raw.githubusercontent.com/OlegGorsky/neurogate-codex-termux/main/scripts/responses_image.py"
+    $DefaultImageHelperUrl
 }
 
 $CodexDir = if ($env:CODEX_HOME) {
@@ -67,6 +68,100 @@ function Test-EnvFlag([string]$Value) {
         return $false
     }
     return $Value -match '^(1|true|yes|y|on|да|д)$'
+}
+
+function Test-HttpUrl([string]$Value) {
+    return ($Value -match '^https?://')
+}
+
+function Add-CacheBust([string]$Url) {
+    if (-not (Test-HttpUrl $Url)) {
+        return $Url
+    }
+
+    $cacheBust = [System.Guid]::NewGuid().ToString("N")
+    if ($Url.Contains("?")) {
+        return ($Url + "&cb=" + $cacheBust)
+    }
+    return ($Url + "?cb=" + $cacheBust)
+}
+
+function Resolve-DownloadSource([string]$Candidate, [string]$DefaultUrl, [string]$Name) {
+    $value = if ($Candidate) { $Candidate.Trim() } else { "" }
+    if ($value -and (Test-HttpUrl $value)) {
+        return $value
+    }
+    if ($value -and (Test-Path -LiteralPath $value -PathType Leaf)) {
+        return (Resolve-Path -LiteralPath $value).Path
+    }
+    if ($value -and $value -ne $DefaultUrl) {
+        Warn ("Ignoring invalid " + $Name + " value: " + $value)
+    }
+    return $DefaultUrl
+}
+
+function Enable-Tls12 {
+    try {
+        [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
+    } catch {
+    }
+}
+
+function Get-DownloadBytes([string]$Source, [string]$Label) {
+    if (-not $Source) {
+        Die ($Label + " source is empty.")
+    }
+
+    if (-not (Test-HttpUrl $Source)) {
+        if (-not (Test-Path -LiteralPath $Source -PathType Leaf)) {
+            Die ($Label + " source is neither an http(s) URL nor an existing file: " + $Source)
+        }
+        return [System.IO.File]::ReadAllBytes((Resolve-Path -LiteralPath $Source).Path)
+    }
+
+    $downloadUrl = Add-CacheBust $Source
+    Enable-Tls12
+    $webClient = New-Object System.Net.WebClient
+    $webClient.Headers.Set("User-Agent", "neurogate-codex-desktop-setup")
+    if ($webClient.Proxy) {
+        $webClient.Proxy.Credentials = [System.Net.CredentialCache]::DefaultNetworkCredentials
+    }
+
+    try {
+        return $webClient.DownloadData($downloadUrl)
+    } catch {
+        Die ("Could not download " + $Label + " from " + $downloadUrl + ": " + $_.Exception.Message)
+    } finally {
+        $webClient.Dispose()
+    }
+}
+
+function ConvertFrom-Utf8Bytes([byte[]]$Bytes, [string]$Label) {
+    if (-not $Bytes -or $Bytes.Length -eq 0) {
+        Die ($Label + " download is empty.")
+    }
+
+    $strictUtf8 = New-Object System.Text.UTF8Encoding -ArgumentList $false, $true
+    try {
+        $text = $strictUtf8.GetString($Bytes)
+    } catch {
+        Die ($Label + " download is not valid UTF-8: " + $_.Exception.Message)
+    }
+
+    if ($text.Length -gt 0 -and $text[0] -eq [char]0xFEFF) {
+        $text = $text.Substring(1)
+    }
+    if ($text.TrimStart() -match '^(?i)<(!doctype|html)') {
+        Die ($Label + " download looks like HTML, not a script.")
+    }
+
+    return $text
+}
+
+function Save-DownloadedTextFile([string]$Source, [string]$Target, [string]$Label) {
+    $bytes = Get-DownloadBytes $Source $Label
+    $text = ConvertFrom-Utf8Bytes $bytes $Label
+    Write-TextNoBom $Target $text
 }
 
 function Read-ClipboardApiKey {
@@ -396,6 +491,7 @@ function Format-ApiCheckError($ErrorRecord, [string]$ApiKey) {
 
 function Check-Models([string]$ApiKey) {
     try {
+        Enable-Tls12
         $response = Invoke-RestMethod -Method Get -Uri "$BaseUrl/models" -Headers @{ Authorization = "Bearer $ApiKey" } -TimeoutSec 60
     } catch {
         Die (Format-ApiCheckError $_ $ApiKey)
@@ -424,7 +520,8 @@ function Install-ImageHelper {
 
     $helperDir = Split-Path -Parent $ImageHelperPath
     New-Item -ItemType Directory -Force -Path $helperDir | Out-Null
-    Invoke-WebRequest -UseBasicParsing -Uri $ImageHelperUrl -OutFile $ImageHelperPath
+    $imageHelperSource = Resolve-DownloadSource $ImageHelperSourceCandidate $DefaultImageHelperUrl "NEUROGATE_IMAGE_HELPER_URL"
+    Save-DownloadedTextFile $imageHelperSource $ImageHelperPath "image helper"
 
     $cmdPath = Join-Path $helperDir "responses-image.cmd"
     $helperName = Split-Path -Leaf $ImageHelperPath

@@ -643,6 +643,18 @@ test_desktop_powershell_static_checks() {
   assert_contains "$DESKTOP_PS" '[switch]$KeyFromClipboard' 'PowerShell setup can read key from clipboard'
   assert_contains "$DESKTOP_PS" 'NEUROGATE_KEY_FROM_CLIPBOARD' 'PowerShell setup supports clipboard env flag'
   assert_contains "$DESKTOP_PS" 'Get-Clipboard' 'PowerShell setup reads clipboard when requested'
+  assert_contains "$DESKTOP_PS" '$DefaultImageHelperUrl' 'PowerShell setup has a default image helper URL'
+  assert_contains "$DESKTOP_PS" 'Resolve-DownloadSource $ImageHelperSourceCandidate $DefaultImageHelperUrl "NEUROGATE_IMAGE_HELPER_URL"' 'PowerShell setup resolves image helper source before download'
+  assert_contains "$DESKTOP_PS" 'Save-DownloadedTextFile $imageHelperSource $ImageHelperPath "image helper"' 'PowerShell setup downloads image helper through hardened downloader'
+  assert_contains "$DESKTOP_PS" 'Ignoring invalid " + $Name + " value' 'PowerShell setup ignores invalid download source overrides'
+  assert_contains "$DESKTOP_PS" '$Url + "?cb=" + $cacheBust' 'PowerShell setup appends cache-bust query by concatenation'
+  assert_not_contains_file "$DESKTOP_PS" '$Url?cb=$cacheBust' 'PowerShell setup does not interpolate URL before ?cb'
+  assert_contains "$DESKTOP_PS" 'DefaultNetworkCredentials' 'PowerShell setup supports default proxy credentials for downloads'
+  assert_contains "$DESKTOP_PS" 'download looks like HTML, not a script' 'PowerShell setup rejects HTML helper downloads'
+  assert_contains "$DESKTOP_PS" 'Enable-Tls12' 'PowerShell setup can enable TLS 1.2'
+  assert_contains "$DESKTOP_PS" '[System.Net.SecurityProtocolType]::Tls12' 'PowerShell setup requests TLS 1.2 when available'
+  assert_contains "$DESKTOP_PS" 'Invoke-RestMethod -Method Get' 'PowerShell setup still uses REST API for model check'
+  assert_not_contains_file "$DESKTOP_PS" 'Invoke-WebRequest -UseBasicParsing -Uri $ImageHelperUrl -OutFile $ImageHelperPath' 'PowerShell setup does not use raw Invoke-WebRequest for image helper'
   assert_contains "$DESKTOP_PS" 'Read-MaskedInput "Вставь NeuroGate API key"' 'PowerShell setup uses masked key input'
   assert_contains "$DESKTOP_PS" 'Read-MaskedInput "Сохранённый NeuroGate API key найден. Enter = оставить, r = заменить, или вставь новый ключ"' 'PowerShell setup masks existing-key choice prompt'
   assert_not_contains_file "$DESKTOP_PS" 'Saved NeuroGate API key found' 'PowerShell setup does not show English saved-key prompt'
@@ -820,6 +832,47 @@ test_desktop_powershell_bootstrap_url_resolution() {
   else
     printf '%s\n' "$output" >&2
     fail 'PowerShell bootstrap URL resolution handles invalid overrides and cache-busts'
+  fi
+}
+
+test_desktop_powershell_setup_download_resolution() {
+  local output
+  if ! command -v pwsh >/dev/null 2>&1; then
+    pass 'PowerShell setup download resolution check skipped without pwsh'
+    return
+  fi
+
+  if output="$(PS_SETUP_PATH="$DESKTOP_PS" pwsh -NoProfile -Command '
+    $script = Get-Content -Raw $env:PS_SETUP_PATH
+    $marker = "`n`$apiKey = Read-ApiKey"
+    $idx = $script.IndexOf($marker)
+    if ($idx -lt 0) { throw "setup execution marker not found" }
+    Invoke-Expression $script.Substring(0, $idx)
+
+    $default = "https://example.test/helper.py"
+    $bad = Resolve-DownloadSource "=85270456b1154ba39fb139bf7d8bcfdf" $default "NEUROGATE_IMAGE_HELPER_URL"
+    $remote = Resolve-DownloadSource "https://example.test/helper.py" $default "NEUROGATE_IMAGE_HELPER_URL"
+    $noQuery = Add-CacheBust "https://example.test/helper.py"
+    $withQuery = Add-CacheBust "https://example.test/helper.py?x=1"
+    $tmp = [System.IO.Path]::GetTempFileName()
+    try {
+      $local = Resolve-DownloadSource $tmp $default "NEUROGATE_IMAGE_HELPER_URL"
+      if ($local -ne (Resolve-Path -LiteralPath $tmp).Path) { throw "local override changed: $local" }
+    } finally {
+      Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue
+    }
+
+    if ($bad -ne $default) { throw "bad helper override did not fall back: $bad" }
+    if ($remote -ne "https://example.test/helper.py") { throw "remote helper URL changed: $remote" }
+    if ($noQuery -notmatch "\?cb=") { throw "helper URL without query did not use ?cb=: $noQuery" }
+    if ($noQuery -match "\.py&cb=") { throw "helper URL without query used &cb=: $noQuery" }
+    if ($withQuery -notmatch "\?x=1&cb=") { throw "helper URL with query did not use &cb=: $withQuery" }
+    "ok"
+  ' 2>&1)"; then
+    pass 'PowerShell setup download resolution handles invalid overrides and cache-busts'
+  else
+    printf '%s\n' "$output" >&2
+    fail 'PowerShell setup download resolution handles invalid overrides and cache-busts'
   fi
 }
 
@@ -1128,6 +1181,7 @@ test_desktop_bootstrap_downloads_and_runs_setup
 test_desktop_powershell_static_checks
 test_desktop_powershell_wsl_embedded_script
 test_desktop_powershell_bootstrap_url_resolution
+test_desktop_powershell_setup_download_resolution
 test_pipe_safe_prompt_static_checks
 test_desktop_interactive_prompt_reads_from_tty
 test_requires_key_when_non_interactive

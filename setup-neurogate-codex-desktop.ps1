@@ -553,7 +553,15 @@ function Test-WslReady {
     }
 
     $wslArgs = @(Get-WslBaseArgs) + @("--", "sh", "-lc", "printf ready")
-    $output = & $wsl.Source @wslArgs 2>$null
+    $previousErrorActionPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = "Continue"
+        $output = & $wsl.Source @wslArgs 2>$null
+    } catch {
+        return $false
+    } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
     return ($LASTEXITCODE -eq 0 -and ($output -join "") -eq "ready")
 }
 
@@ -725,7 +733,16 @@ printf 'home=%s\n' "$HOME"
     $wslScript = $wslScript.Replace('__HELPER_B64__', $helperB64)
 
     $wslArgs = @(Get-WslBaseArgs) + @("--", "bash", "-s")
-    $output = $wslScript | & $wsl.Source @wslArgs 2>&1
+    $previousErrorActionPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = "Continue"
+        $output = $wslScript | & $wsl.Source @wslArgs 2>&1
+    } catch {
+        Warn "Настройка WSL не удалась: $($_.Exception.Message)"
+        return
+    } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
     if ($LASTEXITCODE -eq 0) {
         $target = ""
         $wslUser = ""

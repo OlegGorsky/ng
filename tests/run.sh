@@ -741,6 +741,23 @@ test_desktop_powershell_static_checks() {
   fi
 }
 
+test_desktop_powershell_wsl_ready_failure_is_nonfatal() {
+  local body
+  body="$(sed -n '/^function Test-WslReady {$/,/^}$/p' "$DESKTOP_PS")"
+  if [[ -z "$body" ]]; then
+    fail 'PowerShell WSL readiness function exists'
+    return
+  fi
+  pass 'PowerShell WSL readiness function exists'
+
+  if [[ "$body" == *'try {'* && "$body" == *'catch {'* && "$body" == *'return $false'* ]]; then
+    pass 'PowerShell WSL readiness handles wsl.exe errors as not ready'
+  else
+    printf '%s\n' "$body" >&2
+    fail 'PowerShell WSL readiness handles wsl.exe errors as not ready'
+  fi
+}
+
 test_desktop_powershell_wsl_embedded_script() {
   local tmp script provider_b64 base_url_b64 model_b64 effort_b64 auth_b64 helper_b64 output
   if ! command -v base64 >/dev/null 2>&1; then
@@ -1179,6 +1196,7 @@ test_desktop_setup_masks_direct_key_paste_over_existing_auth
 test_desktop_api_check_reports_safe_details
 test_desktop_bootstrap_downloads_and_runs_setup
 test_desktop_powershell_static_checks
+test_desktop_powershell_wsl_ready_failure_is_nonfatal
 test_desktop_powershell_wsl_embedded_script
 test_desktop_powershell_bootstrap_url_resolution
 test_desktop_powershell_setup_download_resolution

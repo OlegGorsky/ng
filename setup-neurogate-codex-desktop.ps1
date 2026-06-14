@@ -258,31 +258,44 @@ function Read-ExistingApiKey {
     return $null
 }
 
+function Confirm-FoundApiKey([string]$Label, [string]$Value) {
+    if (-not $Value -or -not $Value.Trim()) {
+        return $null
+    }
+
+    $trimmed = $Value.Trim()
+    if ($NonInteractive) {
+        return $trimmed
+    }
+
+    if ($ReplaceKey -or (Test-EnvFlag $env:NEUROGATE_REPLACE_KEY) -or $KeyFromClipboard -or (Test-EnvFlag $env:NEUROGATE_KEY_FROM_CLIPBOARD)) {
+        return Read-NewApiKey
+    }
+
+    $answer = Read-MaskedInput ($Label + ". Enter = использовать, r = заменить, или вставь новый ключ")
+    $answer = $answer.Trim()
+    if (-not $answer) {
+        return $trimmed
+    }
+    if ($answer -match '^(r|replace|new|n|н|з|заменить)$') {
+        return Read-NewApiKey
+    }
+    return $answer
+}
+
 function Read-ApiKey {
     $apiKey = if ($env:NEUROGATE_API_KEY) { $env:NEUROGATE_API_KEY } else { $env:OPENAI_API_KEY }
     if ($apiKey -and $apiKey.Trim()) {
-        return $apiKey.Trim()
+        return Confirm-FoundApiKey "NeuroGate API key найден в переменной окружения" $apiKey
     }
 
-    $replaceExisting = $ReplaceKey -or (Test-EnvFlag $env:NEUROGATE_REPLACE_KEY)
     $existingKey = Read-ExistingApiKey
-    if ($existingKey -and -not $replaceExisting) {
-        if (-not $NonInteractive) {
-            $answer = Read-MaskedInput "Сохранённый NeuroGate API key найден. Enter = оставить, r = заменить, или вставь новый ключ"
-            $answer = $answer.Trim()
-            if (-not $answer) {
-                return $existingKey
-            }
-            if ($answer -match '^(r|replace|new|n|н|з|заменить)$') {
-                return Read-NewApiKey
-            }
-            return $answer
-        }
-        return $existingKey
+    if ($existingKey) {
+        return Confirm-FoundApiKey "Сохранённый NeuroGate API key найден" $existingKey
     }
 
     if ($NonInteractive) {
-        if ($replaceExisting) {
+        if ($ReplaceKey -or (Test-EnvFlag $env:NEUROGATE_REPLACE_KEY)) {
             Die "Запрошена замена API-ключа. Передай NEUROGATE_API_KEY или запусти скрипт интерактивно."
         }
         Die "API-ключ не найден. Передай NEUROGATE_API_KEY или один раз запусти скрипт интерактивно."

@@ -239,33 +239,50 @@ prompt_new_api_key() {
   [[ -n "$API_KEY" ]] || die 'API-ключ не найден'
 }
 
-read_api_key() {
-  API_KEY="$(trim_key "$API_KEY")"
-  if [[ -n "$API_KEY" ]]; then
+choose_found_api_key() {
+  local label="$1"
+  local found_key="$2"
+  local replace_answer
+  found_key="$(trim_key "$found_key")"
+  [[ -n "$found_key" ]] || return 1
+
+  if [[ "$NON_INTERACTIVE" -eq 1 ]]; then
+    API_KEY="$found_key"
     return 0
   fi
 
-  local existing_key replace_answer
-  if existing_key="$(read_existing_api_key)" && ! is_truthy "$REPLACE_KEY"; then
-    if [[ "$NON_INTERACTIVE" -eq 0 ]]; then
-      printf 'Сохранённый NeuroGate API key найден. Enter = оставить, r = заменить, или вставь новый ключ (маска): '
-      read_secret replace_answer
-      printf '\n'
-      replace_answer="$(trim_key "$replace_answer")"
-      if [[ -z "$replace_answer" ]]; then
-        API_KEY="$existing_key"
-        return 0
-      fi
-      case "$replace_answer" in
-        r|R|replace|REPLACE|new|NEW|n|N|н|Н|з|З|заменить|ЗАМЕНИТЬ)
-          prompt_new_api_key
-          return 0
-          ;;
-      esac
-      API_KEY="$replace_answer"
+  if is_truthy "$REPLACE_KEY"; then
+    prompt_new_api_key
+    return 0
+  fi
+
+  printf '%s. Enter = использовать, r = заменить, или вставь новый ключ (маска): ' "$label"
+  read_secret replace_answer
+  printf '\n'
+  replace_answer="$(trim_key "$replace_answer")"
+  if [[ -z "$replace_answer" ]]; then
+    API_KEY="$found_key"
+    return 0
+  fi
+  case "$replace_answer" in
+    r|R|replace|REPLACE|new|NEW|n|N|н|Н|з|З|заменить|ЗАМЕНИТЬ)
+      prompt_new_api_key
       return 0
-    fi
-    API_KEY="$existing_key"
+      ;;
+  esac
+  API_KEY="$replace_answer"
+}
+
+read_api_key() {
+  API_KEY="$(trim_key "$API_KEY")"
+  if [[ -n "$API_KEY" ]]; then
+    choose_found_api_key 'NeuroGate API key найден в переменной окружения' "$API_KEY"
+    return 0
+  fi
+
+  local existing_key
+  if existing_key="$(read_existing_api_key)"; then
+    choose_found_api_key 'Сохранённый NeuroGate API key найден' "$existing_key"
     return 0
   fi
 

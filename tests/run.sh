@@ -533,6 +533,38 @@ JSON
   rm -rf "$tmp"
 }
 
+test_desktop_setup_can_replace_env_key_interactively() {
+  local tmp auth output
+  if ! command -v script >/dev/null 2>&1; then
+    pass 'desktop env key replacement prompt check skipped without script command'
+    return
+  fi
+
+  tmp="$(mktemp -d)"
+  auth="$tmp/home/.codex/auth.json"
+
+  if output="$(printf 'r\nnew-env-test-key\n' | NEUROGATE_API_KEY='env-test-api-key' HOME="$tmp/home" CODEX_HOME="$tmp/home/.codex" \
+    script -qfec "bash \"$DESKTOP_SCRIPT\" --skip-api-check --no-image-helper" /dev/null 2>&1)"; then
+    pass 'desktop setup can replace env API key interactively'
+  else
+    printf '%s\n' "$output" >&2
+    fail 'desktop setup can replace env API key interactively'
+    rm -rf "$tmp"
+    return
+  fi
+
+  assert_contains "$auth" '"OPENAI_API_KEY": "new-env-test-key"' 'desktop env key prompt writes replacement API key'
+  if [[ "$output" == *'NeuroGate API key найден в переменной окружения'* && "$output" == *'****************'* ]]; then
+    pass 'desktop env key prompt asks before reusing env key'
+  else
+    printf '%s\n' "$output" >&2
+    fail 'desktop env key prompt asks before reusing env key'
+  fi
+  assert_not_contains_text "$output" 'env-test-api-key' 'desktop env key prompt does not print env key'
+
+  rm -rf "$tmp"
+}
+
 test_desktop_setup_masks_direct_key_paste_over_existing_auth() {
   local tmp auth output
   if ! command -v script >/dev/null 2>&1; then
@@ -676,6 +708,7 @@ test_desktop_powershell_static_checks() {
   assert_contains "$DESKTOP_PS" '[switch]$KeyFromClipboard' 'PowerShell setup can read key from clipboard'
   assert_contains "$DESKTOP_PS" 'NEUROGATE_KEY_FROM_CLIPBOARD' 'PowerShell setup supports clipboard env flag'
   assert_contains "$DESKTOP_PS" 'NEUROGATE_SKIP_API_CHECK' 'PowerShell setup supports env API check skip'
+  assert_contains "$DESKTOP_PS" 'NeuroGate API key найден в переменной окружения' 'PowerShell setup asks before reusing env key interactively'
   assert_contains "$DESKTOP_PS" 'Get-Clipboard' 'PowerShell setup reads clipboard when requested'
   assert_contains "$DESKTOP_PS" '$DefaultImageHelperUrl' 'PowerShell setup has a default image helper URL'
   assert_contains "$DESKTOP_PS" 'Resolve-DownloadSource $ImageHelperSourceCandidate $DefaultImageHelperUrl "NEUROGATE_IMAGE_HELPER_URL"' 'PowerShell setup resolves image helper source before download'
@@ -690,7 +723,7 @@ test_desktop_powershell_static_checks() {
   assert_contains "$DESKTOP_PS" 'Invoke-RestMethod -Method Get' 'PowerShell setup still uses REST API for model check'
   assert_not_contains_file "$DESKTOP_PS" 'Invoke-WebRequest -UseBasicParsing -Uri $ImageHelperUrl -OutFile $ImageHelperPath' 'PowerShell setup does not use raw Invoke-WebRequest for image helper'
   assert_contains "$DESKTOP_PS" 'Read-MaskedInput "Вставь NeuroGate API key"' 'PowerShell setup uses masked key input'
-  assert_contains "$DESKTOP_PS" 'Read-MaskedInput "Сохранённый NeuroGate API key найден. Enter = оставить, r = заменить, или вставь новый ключ"' 'PowerShell setup masks existing-key choice prompt'
+  assert_contains "$DESKTOP_PS" 'Confirm-FoundApiKey "Сохранённый NeuroGate API key найден" $existingKey' 'PowerShell setup masks existing-key choice prompt'
   assert_not_contains_file "$DESKTOP_PS" 'Saved NeuroGate API key found' 'PowerShell setup does not show English saved-key prompt'
   assert_not_contains_file "$DESKTOP_SCRIPT" 'Saved NeuroGate API key found' 'Desktop bash setup does not show English saved-key prompt'
   assert_not_contains_file "$DESKTOP_SCRIPT" 'Paste NeuroGate API key' 'Desktop bash setup does not show English key prompt'
@@ -1228,6 +1261,7 @@ test_reuses_existing_auth_key_non_interactive
 test_desktop_setup_creates_config_and_image_helper
 test_desktop_setup_reuses_existing_auth_key
 test_desktop_setup_can_replace_existing_auth_key
+test_desktop_setup_can_replace_env_key_interactively
 test_desktop_setup_masks_direct_key_paste_over_existing_auth
 test_desktop_api_check_reports_safe_details
 test_desktop_setup_can_skip_api_check_from_env

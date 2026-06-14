@@ -79,7 +79,17 @@ wire_api = "responses"
 
 После обновления перезапусти Codex Desktop, чтобы приложение перечитало provider config.
 
-Если после записи файлов падает только проверка `/v1/models`, настройки уже сохранены. Обычно это означает, что API-ключ не принят сервером или сеть не даёт сделать контрольный запрос. Для повторной записи без проверки можно запустить скрипт с `-SkipApiCheck`, но для реальной работы Codex ключ всё равно должен проходить авторизацию.
+Если после записи файлов падает только проверка `/v1/models`, настройки уже сохранены. `HTTP 401` обычно означает, что API-ключ не принят сервером. Для принудительной замены ключа в Windows скопируй новый ключ в буфер и запусти:
+
+```powershell
+$env:NEUROGATE_REPLACE_KEY='1'; $env:NEUROGATE_KEY_FROM_CLIPBOARD='1'; irm https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1 | iex; Remove-Item Env:\NEUROGATE_REPLACE_KEY; Remove-Item Env:\NEUROGATE_KEY_FROM_CLIPBOARD
+```
+
+Для повторной записи без проверки можно запустить скрипт с `-SkipApiCheck`, но для реальной работы Codex ключ всё равно должен проходить авторизацию. Для короткой Windows-команды:
+
+```powershell
+$env:NEUROGATE_SKIP_API_CHECK='1'; irm https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1 | iex; Remove-Item Env:\NEUROGATE_SKIP_API_CHECK
+```
 
 ## Окно авторизации Codex Desktop
 

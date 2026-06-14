@@ -82,7 +82,17 @@ wire_api = "responses"
 
 Перед изменением существующих файлов создаются `.bak-YYYYmmdd-HHMMSS` бэкапы.
 
-Если скрипт успел записать файлы, но упал на проверке `/v1/models`, настройки уже сохранены. Чаще всего причина в ключе или сетевом доступе до NeuroGate. Повторить запись без контрольного запроса можно опцией `-SkipApiCheck` на Windows или `--skip-api-check` на Linux/macOS/Termux.
+Если скрипт успел записать файлы, но упал на проверке `/v1/models`, настройки уже сохранены. `HTTP 401` почти всегда означает, что сервер не принял сохранённый API-ключ. Для принудительной замены ключа в Windows скопируй новый ключ в буфер и запусти:
+
+```powershell
+$env:NEUROGATE_REPLACE_KEY='1'; $env:NEUROGATE_KEY_FROM_CLIPBOARD='1'; irm https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1 | iex; Remove-Item Env:\NEUROGATE_REPLACE_KEY; Remove-Item Env:\NEUROGATE_KEY_FROM_CLIPBOARD
+```
+
+Повторить запись без контрольного запроса можно опцией `-SkipApiCheck` на Windows или `--skip-api-check` на Linux/macOS/Termux. Для короткой Windows-команды:
+
+```powershell
+$env:NEUROGATE_SKIP_API_CHECK='1'; irm https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1 | iex; Remove-Item Env:\NEUROGATE_SKIP_API_CHECK
+```
 
 При вставке в prompt ключ не показывается, но по количеству `*` видно, сколько символов считалось. Если в Windows вставка всё равно работает криво, скопируй ключ в буфер обмена и запусти:
 

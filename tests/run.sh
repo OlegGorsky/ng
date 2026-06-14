@@ -599,9 +599,42 @@ test_desktop_api_check_reports_safe_details() {
     printf '%s\n' "$output" >&2
     fail 'desktop setup reports safe API check details'
   fi
+  if [[ "$output" == *'NEUROGATE_REPLACE_KEY'* && "$output" == *'NEUROGATE_SKIP_API_CHECK'* ]]; then
+    pass 'desktop setup explains how to replace key or skip API check'
+  else
+    printf '%s\n' "$output" >&2
+    fail 'desktop setup explains how to replace key or skip API check'
+  fi
   assert_not_contains_text "$output" 'test-api-key' 'desktop API check error does not print API key'
   assert_not_contains_text "$output" 'Bearer abcdefgh' 'desktop API check error redacts bearer token'
   assert_not_contains_text "$output" 'sk-abcdefgh' 'desktop API check error redacts sk token'
+
+  rm -rf "$tmp"
+}
+
+test_desktop_setup_can_skip_api_check_from_env() {
+  local tmp bin output
+  tmp="$(mktemp -d)"
+  bin="$tmp/bin"
+  mkdir -p "$bin"
+  make_fake_api_error_curl "$bin"
+
+  if output="$(NEUROGATE_API_KEY='test-api-key' NEUROGATE_SKIP_API_CHECK='1' HOME="$tmp/home" PATH="$bin:$PATH" \
+    bash "$DESKTOP_SCRIPT" --non-interactive --no-image-helper 2>&1)"; then
+    pass 'desktop setup can skip API check from env'
+  else
+    printf '%s\n' "$output" >&2
+    fail 'desktop setup can skip API check from env'
+    rm -rf "$tmp"
+    return
+  fi
+
+  if [[ "$output" == *'Проверка /v1/models пропущена'* && "$output" != *'HTTP 401'* ]]; then
+    pass 'desktop env skip avoids failing API check'
+  else
+    printf '%s\n' "$output" >&2
+    fail 'desktop env skip avoids failing API check'
+  fi
 
   rm -rf "$tmp"
 }
@@ -642,6 +675,7 @@ test_desktop_powershell_static_checks() {
   assert_contains "$DESKTOP_PS" '[switch]$ReplaceKey' 'PowerShell setup can replace an existing key'
   assert_contains "$DESKTOP_PS" '[switch]$KeyFromClipboard' 'PowerShell setup can read key from clipboard'
   assert_contains "$DESKTOP_PS" 'NEUROGATE_KEY_FROM_CLIPBOARD' 'PowerShell setup supports clipboard env flag'
+  assert_contains "$DESKTOP_PS" 'NEUROGATE_SKIP_API_CHECK' 'PowerShell setup supports env API check skip'
   assert_contains "$DESKTOP_PS" 'Get-Clipboard' 'PowerShell setup reads clipboard when requested'
   assert_contains "$DESKTOP_PS" '$DefaultImageHelperUrl' 'PowerShell setup has a default image helper URL'
   assert_contains "$DESKTOP_PS" 'Resolve-DownloadSource $ImageHelperSourceCandidate $DefaultImageHelperUrl "NEUROGATE_IMAGE_HELPER_URL"' 'PowerShell setup resolves image helper source before download'
@@ -669,6 +703,8 @@ test_desktop_powershell_static_checks() {
   assert_not_contains_file "$DESKTOP_PS" '@("--", "bash", "-s", $ApiKey)' 'PowerShell setup does not pass API key as WSL argument'
   assert_contains "$DESKTOP_PS" 'Format-ApiCheckError $_ $ApiKey' 'PowerShell setup reports API check details'
   assert_contains "$DESKTOP_PS" 'Настройки записаны, но контрольный запрос к API не прошёл' 'PowerShell setup explains files stay written after API check failure'
+  assert_contains "$DESKTOP_PS" 'NEUROGATE_REPLACE_KEY' 'PowerShell setup explains key replacement on API check failure'
+  assert_contains "$DESKTOP_PS" 'NEUROGATE_SKIP_API_CHECK' 'PowerShell setup explains env API check skip on API check failure'
   assert_contains "$DESKTOP_PS" 'Bearer [redacted]' 'PowerShell setup redacts bearer tokens in errors'
   assert_not_contains_file "$DESKTOP_PS" '"sk-[A-Za-z0-9_*.-]{8,}"' 'PowerShell setup avoids PS5-sensitive regex quantifier in expandable string'
   assert_not_contains_file "$DESKTOP_PS" '"Bearer\s+[A-Za-z0-9._~+/=-]+"' 'PowerShell setup avoids regex pattern in expandable string'
@@ -1194,6 +1230,7 @@ test_desktop_setup_reuses_existing_auth_key
 test_desktop_setup_can_replace_existing_auth_key
 test_desktop_setup_masks_direct_key_paste_over_existing_auth
 test_desktop_api_check_reports_safe_details
+test_desktop_setup_can_skip_api_check_from_env
 test_desktop_bootstrap_downloads_and_runs_setup
 test_desktop_powershell_static_checks
 test_desktop_powershell_wsl_ready_failure_is_nonfatal

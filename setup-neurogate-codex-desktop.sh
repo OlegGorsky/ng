@@ -8,7 +8,7 @@ DEFAULT_REASONING_EFFORT='medium'
 IMAGE_HELPER_URL="${NEUROGATE_IMAGE_HELPER_URL:-https://raw.githubusercontent.com/OlegGorsky/neurogate-codex-termux/main/scripts/responses_image.py}"
 
 NON_INTERACTIVE=0
-SKIP_API_CHECK=0
+SKIP_API_CHECK="${NEUROGATE_SKIP_API_CHECK:-0}"
 INSTALL_IMAGE_HELPER=1
 REPLACE_KEY="${NEUROGATE_REPLACE_KEY:-0}"
 MODEL="$DEFAULT_MODEL"
@@ -36,6 +36,7 @@ usage() {
   OPENAI_API_KEY          Запасная переменная для OpenAI-compatible инструментов.
                           Если обе пустые, переиспользуется ключ из auth.json.
   NEUROGATE_REPLACE_KEY   Установи 1, чтобы заменить сохранённый ключ.
+  NEUROGATE_SKIP_API_CHECK Установи 1, чтобы записать файлы без проверки /v1/models.
   CODEX_HOME              Необязательная папка конфига Codex Desktop. По умолчанию: ~/.codex.
 USAGE
 }
@@ -437,6 +438,10 @@ trim_error_details() {
   printf '%s' "$text"
 }
 
+api_check_failure_hint() {
+  printf '%s' ' Подсказка: HTTP 401 обычно означает, что API-ключ не принят. Для короткой команды положи новый ключ в буфер и запусти с NEUROGATE_REPLACE_KEY=1 и NEUROGATE_KEY_FROM_CLIPBOARD=1; чтобы только записать файлы без проверки, используй NEUROGATE_SKIP_API_CHECK=1.'
+}
+
 check_models() {
   local response models status curl_status response_file error_file error_text
   response_file="$(mktemp)"
@@ -458,17 +463,17 @@ check_models() {
   if [[ "$curl_status" -ne 0 ]]; then
     error_text="$(trim_error_details "$error_text")"
     if [[ -n "$error_text" ]]; then
-      die "не удалось проверить /v1/models. Настройки записаны, но контрольный запрос к API не прошёл. Детали: $error_text"
+      die "не удалось проверить /v1/models. Настройки записаны, но контрольный запрос к API не прошёл. Детали: $error_text$(api_check_failure_hint)"
     fi
-    die "не удалось проверить /v1/models. Настройки записаны, но контрольный запрос к API не прошёл. curl exit code: $curl_status"
+    die "не удалось проверить /v1/models. Настройки записаны, но контрольный запрос к API не прошёл. curl exit code: $curl_status$(api_check_failure_hint)"
   fi
 
   if [[ ! "$status" =~ ^2 ]]; then
     response="$(trim_error_details "$response")"
     if [[ -n "$response" ]]; then
-      die "не удалось проверить /v1/models. Настройки записаны, но контрольный запрос к API не прошёл. Детали: HTTP $status | $response"
+      die "не удалось проверить /v1/models. Настройки записаны, но контрольный запрос к API не прошёл. Детали: HTTP $status | $response$(api_check_failure_hint)"
     fi
-    die "не удалось проверить /v1/models. Настройки записаны, но контрольный запрос к API не прошёл. Детали: HTTP $status"
+    die "не удалось проверить /v1/models. Настройки записаны, но контрольный запрос к API не прошёл. Детали: HTTP $status$(api_check_failure_hint)"
   fi
 
   models="$(extract_models "$response" | awk 'NF && !seen[$0]++')"
@@ -500,7 +505,7 @@ main() {
   write_auth
   install_image_helper
 
-  if [[ "$SKIP_API_CHECK" -eq 1 ]]; then
+  if is_truthy "$SKIP_API_CHECK"; then
     log 'Проверка /v1/models пропущена'
   else
     log 'Проверяю NeuroGate API через /v1/models...'

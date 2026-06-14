@@ -486,7 +486,8 @@ function Format-ApiCheckError($ErrorRecord, [string]$ApiKey) {
     }
 
     $suffix = if ($details.Count) { " Details: $($details -join ' | ')" } else { "" }
-    return "Не удалось проверить /v1/models. Настройки записаны, но контрольный запрос к API не прошёл.$suffix"
+    $hint = " Подсказка: HTTP 401 обычно означает, что API-ключ не принят. Для короткой команды положи новый ключ в буфер и запусти с NEUROGATE_REPLACE_KEY=1 и NEUROGATE_KEY_FROM_CLIPBOARD=1; чтобы только записать файлы без проверки, используй NEUROGATE_SKIP_API_CHECK=1."
+    return ("Не удалось проверить /v1/models. Настройки записаны, но контрольный запрос к API не прошёл." + $suffix + $hint)
 }
 
 function Check-Models([string]$ApiKey) {
@@ -785,7 +786,7 @@ Write-Auth $apiKey
 Install-ImageHelper
 Install-WslConfig $apiKey
 
-if ($SkipApiCheck) {
+if ($SkipApiCheck -or (Test-EnvFlag $env:NEUROGATE_SKIP_API_CHECK)) {
     Log "Проверка /v1/models пропущена"
 } else {
     Log "Проверяю NeuroGate API через /v1/models..."

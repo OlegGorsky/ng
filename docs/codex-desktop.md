@@ -1,4 +1,4 @@
-# NeuroGate для Codex Desktop
+# Vibemode для Codex Desktop
 
 Этот контур настраивает Codex Desktop на Windows, macOS и Ubuntu/Linux через тот же конфиг, который использует локальный Codex:
 
@@ -50,22 +50,26 @@ irm https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1 | iex
 Если парольный prompt плохо принимает вставку, скопируй ключ в буфер обмена и запусти:
 
 ```powershell
-$env:NEUROGATE_KEY_FROM_CLIPBOARD='1'; irm https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1 | iex; Remove-Item Env:\NEUROGATE_KEY_FROM_CLIPBOARD
+$env:VIBEMODE_KEY_FROM_CLIPBOARD='1'; irm https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1 | iex; Remove-Item Env:\VIBEMODE_KEY_FROM_CLIPBOARD
 ```
 
 ## Что меняется
 
-В `config.toml` выставляется NeuroGate provider:
+В `config.toml` выставляется Vibemode provider:
 
 ```toml
-model = "gpt-5.5"
-model_provider = "NeuroGate API"
-model_reasoning_effort = "medium"
+model = "gpt-5.4"
+model_provider = "vibemode"
 
-[model_providers."NeuroGate API"]
-name = "NeuroGate API"
-base_url = "https://api.neurogate.space/v1"
-wire_api = "responses"
+[model_providers.vibemode]
+name = "vibemode"
+base_url = "https://api.vibemod.pro/v1"
+env_key = "CODEX_KEY"
+
+[profiles.default]
+model = "gpt-5.4"
+model_provider = "vibemode"
+reasoning_effort = "medium"
 ```
 
 В `auth.json` записывается или сохраняется:
@@ -73,7 +77,7 @@ wire_api = "responses"
 ```json
 {
   "auth_mode": "apikey",
-  "OPENAI_API_KEY": "..."
+  "CODEX_KEY": "..."
 }
 ```
 
@@ -82,13 +86,13 @@ wire_api = "responses"
 Если после записи файлов падает только проверка `/v1/models`, настройки уже сохранены. `HTTP 401` обычно означает, что API-ключ не принят сервером. Для принудительной замены ключа в Windows скопируй новый ключ в буфер и запусти:
 
 ```powershell
-$env:NEUROGATE_REPLACE_KEY='1'; $env:NEUROGATE_KEY_FROM_CLIPBOARD='1'; irm https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1 | iex; Remove-Item Env:\NEUROGATE_REPLACE_KEY; Remove-Item Env:\NEUROGATE_KEY_FROM_CLIPBOARD
+$env:VIBEMODE_REPLACE_KEY='1'; $env:VIBEMODE_KEY_FROM_CLIPBOARD='1'; irm https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1 | iex; Remove-Item Env:\VIBEMODE_REPLACE_KEY; Remove-Item Env:\VIBEMODE_KEY_FROM_CLIPBOARD
 ```
 
 Для повторной записи без проверки можно запустить скрипт с `-SkipApiCheck`, но для реальной работы Codex ключ всё равно должен проходить авторизацию. Для короткой Windows-команды:
 
 ```powershell
-$env:NEUROGATE_SKIP_API_CHECK='1'; irm https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1 | iex; Remove-Item Env:\NEUROGATE_SKIP_API_CHECK
+$env:VIBEMODE_SKIP_API_CHECK='1'; irm https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1 | iex; Remove-Item Env:\VIBEMODE_SKIP_API_CHECK
 ```
 
 ## Окно авторизации Codex Desktop
@@ -141,40 +145,40 @@ python "$env:USERPROFILE\.local\bin\responses-image.py" --list-presets
 ~/.local/bin/responses-image generate "cinematic photo of a compact AI workstation" --size wide --quality high
 ```
 
-Helper читает `OPENAI_API_KEY` из Codex `auth.json`, а `base_url` и модель из активного `model_provider`, поэтому после desktop setup картинки идут через NeuroGate.
+Helper читает `CODEX_KEY` из Codex `auth.json`, а `base_url` и модель из активного `model_provider`, поэтому после desktop setup картинки идут через Vibemode.
 
 ## Локальный запуск из клона
 
 Linux/macOS:
 
 ```bash
-bash setup-neurogate-codex-desktop.sh
+bash setup-vibemode-codex-desktop.sh
 ```
 
 Windows:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\setup-neurogate-codex-desktop.ps1
+powershell -ExecutionPolicy Bypass -File .\setup-vibemode-codex-desktop.ps1
 ```
 
 Полезные опции:
 
 ```bash
-bash setup-neurogate-codex-desktop.sh --non-interactive --model gpt-5
-bash setup-neurogate-codex-desktop.sh --skip-api-check
-bash setup-neurogate-codex-desktop.sh --no-image-helper
+bash setup-vibemode-codex-desktop.sh --non-interactive --model gpt-5
+bash setup-vibemode-codex-desktop.sh --skip-api-check
+bash setup-vibemode-codex-desktop.sh --no-image-helper
 ```
 
 Windows:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\setup-neurogate-codex-desktop.ps1 -NonInteractive -Model gpt-5
-powershell -ExecutionPolicy Bypass -File .\setup-neurogate-codex-desktop.ps1 -SkipApiCheck
-powershell -ExecutionPolicy Bypass -File .\setup-neurogate-codex-desktop.ps1 -NoImageHelper
-powershell -ExecutionPolicy Bypass -File .\setup-neurogate-codex-desktop.ps1 -WslDistro Ubuntu
-powershell -ExecutionPolicy Bypass -File .\setup-neurogate-codex-desktop.ps1 -NoWsl
-powershell -ExecutionPolicy Bypass -File .\setup-neurogate-codex-desktop.ps1 -ReplaceKey
-powershell -ExecutionPolicy Bypass -File .\setup-neurogate-codex-desktop.ps1 -KeyFromClipboard
+powershell -ExecutionPolicy Bypass -File .\setup-vibemode-codex-desktop.ps1 -NonInteractive -Model gpt-5
+powershell -ExecutionPolicy Bypass -File .\setup-vibemode-codex-desktop.ps1 -SkipApiCheck
+powershell -ExecutionPolicy Bypass -File .\setup-vibemode-codex-desktop.ps1 -NoImageHelper
+powershell -ExecutionPolicy Bypass -File .\setup-vibemode-codex-desktop.ps1 -WslDistro Ubuntu
+powershell -ExecutionPolicy Bypass -File .\setup-vibemode-codex-desktop.ps1 -NoWsl
+powershell -ExecutionPolicy Bypass -File .\setup-vibemode-codex-desktop.ps1 -ReplaceKey
+powershell -ExecutionPolicy Bypass -File .\setup-vibemode-codex-desktop.ps1 -KeyFromClipboard
 ```
 
 `-WslDistro Ubuntu` полезен, если default distro не тот. `-NoWsl` оставляет только Windows-настройку. `-ReplaceKey` принудительно просит новый ключ. `-KeyFromClipboard` берёт новый ключ из буфера обмена.

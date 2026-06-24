@@ -1,13 +1,13 @@
 $ErrorActionPreference = "Stop"
 
-$defaultSetupUrl = "https://raw.githubusercontent.com/OlegGorsky/neurogate-codex-termux/main/setup-neurogate-codex-desktop.ps1"
-$setupUrlCandidate = if ($env:NEUROGATE_CODEX_DESKTOP_SETUP_URL) {
-    $env:NEUROGATE_CODEX_DESKTOP_SETUP_URL
+$defaultSetupUrl = "https://raw.githubusercontent.com/OlegGorsky/ng/main/setup-vibemode-codex-desktop.ps1"
+$setupUrlCandidate = if ($env:VIBEMODE_CODEX_DESKTOP_SETUP_URL) {
+    $env:VIBEMODE_CODEX_DESKTOP_SETUP_URL
 } else {
     $defaultSetupUrl
 }
 
-$tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("neurogate-codex-desktop-" + [System.Guid]::NewGuid().ToString("N") + ".ps1")
+$tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("vibemode-codex-desktop-" + [System.Guid]::NewGuid().ToString("N") + ".ps1")
 
 function Add-CacheBust([string]$Url) {
     if ($Url -notmatch '^https?://') {
@@ -34,7 +34,7 @@ function Resolve-SetupSource([string]$Candidate, [string]$DefaultUrl) {
         return (Resolve-Path -LiteralPath $value).Path
     }
     if ($value -and $value -ne $DefaultUrl) {
-        Write-Warning ("Ignoring invalid NEUROGATE_CODEX_DESKTOP_SETUP_URL value: " + $value)
+        Write-Warning ("Ignoring invalid VIBEMODE_CODEX_DESKTOP_SETUP_URL value: " + $value)
     }
     return $DefaultUrl
 }
@@ -48,12 +48,12 @@ function Enable-Tls12 {
 
 function Get-SetupBytes([string]$Url) {
     if (-not $Url) {
-        throw "NeuroGate setup source is empty."
+        throw "Vibemode setup source is empty."
     }
 
     if (-not (Test-HttpUrl $Url)) {
         if (-not (Test-Path -LiteralPath $Url -PathType Leaf)) {
-            throw ("NeuroGate setup source is neither an http(s) URL nor an existing file: " + $Url)
+            throw ("Vibemode setup source is neither an http(s) URL nor an existing file: " + $Url)
         }
         return [System.IO.File]::ReadAllBytes((Resolve-Path -LiteralPath $Url).Path)
     }
@@ -61,7 +61,7 @@ function Get-SetupBytes([string]$Url) {
     $downloadUrl = Add-CacheBust $Url
     Enable-Tls12
     $webClient = New-Object System.Net.WebClient
-    $webClient.Headers.Set("User-Agent", "neurogate-codex-desktop-bootstrap")
+    $webClient.Headers.Set("User-Agent", "vibemode-codex-desktop-bootstrap")
     if ($webClient.Proxy) {
         $webClient.Proxy.Credentials = [System.Net.CredentialCache]::DefaultNetworkCredentials
     }
@@ -69,7 +69,7 @@ function Get-SetupBytes([string]$Url) {
     try {
         return $webClient.DownloadData($downloadUrl)
     } catch {
-        throw ("Could not download NeuroGate setup from " + $downloadUrl + ": " + $_.Exception.Message)
+        throw ("Could not download Vibemode setup from " + $downloadUrl + ": " + $_.Exception.Message)
     } finally {
         $webClient.Dispose()
     }
@@ -77,21 +77,21 @@ function Get-SetupBytes([string]$Url) {
 
 function ConvertFrom-SetupBytes([byte[]]$Bytes) {
     if (-not $Bytes -or $Bytes.Length -eq 0) {
-        throw "Downloaded NeuroGate setup is empty."
+        throw "Downloaded Vibemode setup is empty."
     }
 
     $strictUtf8 = New-Object System.Text.UTF8Encoding -ArgumentList $false, $true
     try {
         $text = $strictUtf8.GetString($Bytes)
     } catch {
-        throw ("Downloaded NeuroGate setup is not valid UTF-8: " + $_.Exception.Message)
+        throw ("Downloaded Vibemode setup is not valid UTF-8: " + $_.Exception.Message)
     }
 
     if ($text.Length -gt 0 -and $text[0] -eq [char]0xFEFF) {
         $text = $text.Substring(1)
     }
     if ($text.TrimStart() -match '^(?i)<(!doctype|html)') {
-        throw "Downloaded NeuroGate setup looks like HTML, not a PowerShell script."
+        throw "Downloaded Vibemode setup looks like HTML, not a PowerShell script."
     }
 
     return $text
@@ -110,7 +110,7 @@ function Test-SetupScriptSyntax([string]$Path) {
     [System.Management.Automation.PSParser]::Tokenize($text, [ref]$parseErrors) | Out-Null
     if ($parseErrors -and $parseErrors.Count -gt 0) {
         $summary = ($parseErrors | Select-Object -First 5 | ForEach-Object { $_.Message }) -join " | "
-        throw ("Downloaded NeuroGate setup failed PowerShell parse preflight: " + $summary)
+        throw ("Downloaded Vibemode setup failed PowerShell parse preflight: " + $summary)
     }
 }
 

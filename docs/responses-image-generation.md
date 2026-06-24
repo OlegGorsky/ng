@@ -1,15 +1,22 @@
-# Генерация изображений через NeuroGate Responses API
+# Генерация изображений через Vibemode Responses API
 
-В репозитории есть helper-скрипт [scripts/responses_image.py](../scripts/responses_image.py). Он работает без OpenAI SDK: читает ключ из `OPENAI_API_KEY` или `~/.codex/auth.json`, а URL и модель берёт из `OPENAI_BASE_URL`/`OPENAI_MODEL` или из активного провайдера в `~/.codex/config.toml`.
+В репозитории есть helper-скрипт [scripts/responses_image.py](../scripts/responses_image.py). Он работает без OpenAI SDK: читает ключ из `CODEX_KEY` или `~/.codex/auth.json`, а URL и модель берёт из `OPENAI_BASE_URL`/`OPENAI_MODEL` или из активного провайдера в `~/.codex/config.toml`.
 
 После запуска Termux или Desktop установщика скрипт автоматически использует:
 
 ```toml
-model_provider = "NeuroGate API"
+model = "gpt-5.4"
+model_provider = "vibemode"
 
-[model_providers."NeuroGate API"]
-base_url = "https://api.neurogate.space/v1"
-wire_api = "responses"
+[model_providers.vibemode]
+name = "vibemode"
+base_url = "https://api.vibemod.pro/v1"
+env_key = "CODEX_KEY"
+
+[profiles.default]
+model = "gpt-5.4"
+model_provider = "vibemode"
+reasoning_effort = "medium"
 ```
 
 ## Установка helper-команды
@@ -38,7 +45,7 @@ brew install python
 
 ```bash
 mkdir -p ~/.local/bin
-curl -fsSL https://raw.githubusercontent.com/OlegGorsky/neurogate-codex-termux/main/scripts/responses_image.py -o ~/.local/bin/responses-image
+curl -fsSL https://raw.githubusercontent.com/OlegGorsky/ng/main/scripts/responses_image.py -o ~/.local/bin/responses-image
 chmod +x ~/.local/bin/responses-image
 ```
 

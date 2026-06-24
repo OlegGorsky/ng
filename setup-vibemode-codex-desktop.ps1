@@ -1,6 +1,6 @@
 ﻿param(
     [switch]$NonInteractive,
-    [string]$Model = "gpt-5.5",
+    [string]$Model = "gpt-5.4",
     [switch]$SkipApiCheck,
     [switch]$NoImageHelper,
     [switch]$NoWsl,
@@ -12,12 +12,13 @@
 
 $ErrorActionPreference = "Stop"
 
-$ProviderName = "NeuroGate API"
-$BaseUrl = "https://api.neurogate.space/v1"
+$ProviderName = "vibemode"
+$BaseUrl = "https://api.vibemod.pro/v1"
 $DefaultReasoningEffort = "medium"
-$DefaultImageHelperUrl = "https://raw.githubusercontent.com/OlegGorsky/neurogate-codex-termux/main/scripts/responses_image.py"
-$ImageHelperSourceCandidate = if ($env:NEUROGATE_IMAGE_HELPER_URL) {
-    $env:NEUROGATE_IMAGE_HELPER_URL
+$EnvKey = "CODEX_KEY"
+$DefaultImageHelperUrl = "https://raw.githubusercontent.com/OlegGorsky/ng/main/scripts/responses_image.py"
+$ImageHelperSourceCandidate = if ($env:VIBEMODE_IMAGE_HELPER_URL) {
+    $env:VIBEMODE_IMAGE_HELPER_URL
 } else {
     $DefaultImageHelperUrl
 }
@@ -122,7 +123,7 @@ function Get-DownloadBytes([string]$Source, [string]$Label) {
     $downloadUrl = Add-CacheBust $Source
     Enable-Tls12
     $webClient = New-Object System.Net.WebClient
-    $webClient.Headers.Set("User-Agent", "neurogate-codex-desktop-setup")
+    $webClient.Headers.Set("User-Agent", "vibemode-codex-desktop-setup")
     if ($webClient.Proxy) {
         $webClient.Proxy.Credentials = [System.Net.CredentialCache]::DefaultNetworkCredentials
     }
@@ -225,12 +226,12 @@ function Read-MaskedInput([string]$Prompt) {
 }
 
 function Read-NewApiKey {
-    if ($KeyFromClipboard -or (Test-EnvFlag $env:NEUROGATE_KEY_FROM_CLIPBOARD)) {
-        Log "Читаю NeuroGate API key из буфера обмена"
+    if ($KeyFromClipboard -or (Test-EnvFlag $env:VIBEMODE_KEY_FROM_CLIPBOARD)) {
+        Log "Читаю vibemode key из буфера обмена"
         return Read-ClipboardApiKey
     }
 
-    $plain = Read-MaskedInput "Вставь NeuroGate API key"
+    $plain = Read-MaskedInput "Вставь vibemode key"
     if (-not $plain -or -not $plain.Trim()) {
         Die "API-ключ не найден."
     }
@@ -248,7 +249,7 @@ function Read-ExistingApiKey {
         return $null
     }
 
-    foreach ($name in @("OPENAI_API_KEY", "openai_api_key", "api_key")) {
+    foreach ($name in @("CODEX_KEY")) {
         $property = $payload.PSObject.Properties[$name]
         if ($property -and $property.Value -is [string] -and $property.Value.Trim()) {
             return $property.Value.Trim()
@@ -268,7 +269,7 @@ function Confirm-FoundApiKey([string]$Label, [string]$Value) {
         return $trimmed
     }
 
-    if ($ReplaceKey -or (Test-EnvFlag $env:NEUROGATE_REPLACE_KEY) -or $KeyFromClipboard -or (Test-EnvFlag $env:NEUROGATE_KEY_FROM_CLIPBOARD)) {
+    if ($ReplaceKey -or (Test-EnvFlag $env:VIBEMODE_REPLACE_KEY) -or $KeyFromClipboard -or (Test-EnvFlag $env:VIBEMODE_KEY_FROM_CLIPBOARD)) {
         return Read-NewApiKey
     }
 
@@ -284,21 +285,21 @@ function Confirm-FoundApiKey([string]$Label, [string]$Value) {
 }
 
 function Read-ApiKey {
-    $apiKey = if ($env:NEUROGATE_API_KEY) { $env:NEUROGATE_API_KEY } else { $env:OPENAI_API_KEY }
+    $apiKey = $env:CODEX_KEY
     if ($apiKey -and $apiKey.Trim()) {
-        return Confirm-FoundApiKey "NeuroGate API key найден в переменной окружения" $apiKey
+        return Confirm-FoundApiKey "vibemode key найден в переменной окружения" $apiKey
     }
 
     $existingKey = Read-ExistingApiKey
     if ($existingKey) {
-        return Confirm-FoundApiKey "Сохранённый NeuroGate API key найден" $existingKey
+        return Confirm-FoundApiKey "Сохранённый vibemode key найден" $existingKey
     }
 
     if ($NonInteractive) {
-        if ($ReplaceKey -or (Test-EnvFlag $env:NEUROGATE_REPLACE_KEY)) {
-            Die "Запрошена замена API-ключа. Передай NEUROGATE_API_KEY или запусти скрипт интерактивно."
+        if ($ReplaceKey -or (Test-EnvFlag $env:VIBEMODE_REPLACE_KEY)) {
+            Die "Запрошена замена API-ключа. Передай CODEX_KEY или запусти скрипт интерактивно."
         }
-        Die "API-ключ не найден. Передай NEUROGATE_API_KEY или один раз запусти скрипт интерактивно."
+        Die "API-ключ не найден. Передай CODEX_KEY или один раз запусти скрипт интерактивно."
     }
 
     return Read-NewApiKey
@@ -359,23 +360,27 @@ function Build-ConfigBody {
     $escapedProvider = TomlEscape $ProviderName
     $escapedUrl = TomlEscape $BaseUrl
     $escapedEffort = TomlEscape $DefaultReasoningEffort
+    $escapedEnvKey = TomlEscape $EnvKey
     $lines = New-Object System.Collections.Generic.List[string]
 
     $lines.Add("model = `"$escapedModel`"")
     $lines.Add("model_provider = `"$escapedProvider`"")
-    $lines.Add("model_reasoning_effort = `"$escapedEffort`"")
     $lines.Add("")
 
     if (Test-Path -LiteralPath $ConfigFile) {
         $inRoot = $true
         $skipProvider = $false
-        $providerHeader = "[model_providers.`"$ProviderName`"]"
+        $providerHeader = "[model_providers.$ProviderName]"
+        $quotedProviderHeader = "[model_providers.`"$ProviderName`"]"
+        $oldProviderHeader = '[model_providers."NeuroGate API"]'
+        $oldUnquotedProviderHeader = '[model_providers.NeuroGate API]'
+        $defaultProfileHeader = "[profiles.default]"
 
         foreach ($line in [System.IO.File]::ReadAllLines($ConfigFile)) {
             $trimmed = $line.Trim()
             if ($trimmed -match '^\[') {
                 $inRoot = $false
-                if ($trimmed -eq $providerHeader) {
+                if ($trimmed -eq $providerHeader -or $trimmed -eq $quotedProviderHeader -or $trimmed -eq $oldProviderHeader -or $trimmed -eq $oldUnquotedProviderHeader -or $trimmed -eq $defaultProfileHeader) {
                     $skipProvider = $true
                     continue
                 }
@@ -401,10 +406,15 @@ function Build-ConfigBody {
     }
 
     $lines.Add("")
-    $lines.Add("[model_providers.`"$escapedProvider`"]")
+    $lines.Add("[model_providers.$escapedProvider]")
     $lines.Add("name = `"$escapedProvider`"")
     $lines.Add("base_url = `"$escapedUrl`"")
-    $lines.Add('wire_api = "responses"')
+    $lines.Add("env_key = `"$escapedEnvKey`"")
+    $lines.Add("")
+    $lines.Add("[profiles.default]")
+    $lines.Add("model = `"$escapedModel`"")
+    $lines.Add("model_provider = `"$escapedProvider`"")
+    $lines.Add("reasoning_effort = `"$escapedEffort`"")
 
     return ($lines -join [Environment]::NewLine) + [Environment]::NewLine
 }
@@ -421,7 +431,7 @@ function Write-Auth([string]$ApiKey) {
 
 function Build-AuthBody([string]$ApiKey) {
     $escapedKey = JsonEscape $ApiKey
-    return "{`n  `"auth_mode`": `"apikey`",`n  `"OPENAI_API_KEY`": `"$escapedKey`"`n}`n"
+    return "{`n  `"auth_mode`": `"apikey`",`n  `"CODEX_KEY`": `"$escapedKey`"`n}`n"
 }
 
 function Sanitize-Secret([string]$Text, [string]$ApiKey) {
@@ -499,7 +509,7 @@ function Format-ApiCheckError($ErrorRecord, [string]$ApiKey) {
     }
 
     $suffix = if ($details.Count) { " Details: $($details -join ' | ')" } else { "" }
-    $hint = " Подсказка: HTTP 401 обычно означает, что API-ключ не принят. Для короткой команды положи новый ключ в буфер и запусти с NEUROGATE_REPLACE_KEY=1 и NEUROGATE_KEY_FROM_CLIPBOARD=1; чтобы только записать файлы без проверки, используй NEUROGATE_SKIP_API_CHECK=1."
+    $hint = " Подсказка: HTTP 401 обычно означает, что API-ключ не принят. Для короткой команды положи новый ключ в буфер и запусти с VIBEMODE_REPLACE_KEY=1 и VIBEMODE_KEY_FROM_CLIPBOARD=1; чтобы только записать файлы без проверки, используй VIBEMODE_SKIP_API_CHECK=1."
     return ("Не удалось проверить /v1/models. Настройки записаны, но контрольный запрос к API не прошёл." + $suffix + $hint)
 }
 
@@ -534,7 +544,7 @@ function Install-ImageHelper {
 
     $helperDir = Split-Path -Parent $ImageHelperPath
     New-Item -ItemType Directory -Force -Path $helperDir | Out-Null
-    $imageHelperSource = Resolve-DownloadSource $ImageHelperSourceCandidate $DefaultImageHelperUrl "NEUROGATE_IMAGE_HELPER_URL"
+    $imageHelperSource = Resolve-DownloadSource $ImageHelperSourceCandidate $DefaultImageHelperUrl "VIBEMODE_IMAGE_HELPER_URL"
     Save-DownloadedTextFile $imageHelperSource $ImageHelperPath "image helper"
 
     $cmdPath = Join-Path $helperDir "responses-image.cmd"
@@ -631,6 +641,7 @@ provider="$(decode '__PROVIDER_B64__')"
 base_url="$(decode '__BASE_URL_B64__')"
 model="$(decode '__MODEL_B64__')"
 reasoning_effort="$(decode '__EFFORT_B64__')"
+env_key='CODEX_KEY'
 auth_body_b64='__AUTH_B64__'
 helper_body_b64='__HELPER_B64__'
 
@@ -670,15 +681,15 @@ write_if_changed() {
 }
 
 build_config_body() {
-  local escaped_model escaped_provider escaped_url escaped_effort
+  local escaped_model escaped_provider escaped_url escaped_effort escaped_env_key
   escaped_model="$(toml_escape "$model")"
   escaped_provider="$(toml_escape "$provider")"
   escaped_url="$(toml_escape "$base_url")"
   escaped_effort="$(toml_escape "$reasoning_effort")"
+  escaped_env_key="$(toml_escape "$env_key")"
 
   printf 'model = "%s"\n' "$escaped_model"
   printf 'model_provider = "%s"\n' "$escaped_provider"
-  printf 'model_reasoning_effort = "%s"\n' "$escaped_effort"
   printf '\n'
 
   if [[ -f "$config_file" ]]; then
@@ -686,13 +697,17 @@ build_config_body() {
       BEGIN {
         in_root = 1
         skip_provider = 0
-        provider_header = "[model_providers.\"" provider "\"]"
+        provider_header = "[model_providers." provider "]"
+        quoted_provider_header = "[model_providers.\"" provider "\"]"
+        old_provider_header = "[model_providers.\"NeuroGate API\"]"
+        old_unquoted_provider_header = "[model_providers.NeuroGate API]"
+        default_profile_header = "[profiles.default]"
       }
       /^[[:space:]]*\[/ {
         line = $0
         gsub(/^[[:space:]]+|[[:space:]]+$/, "", line)
         in_root = 0
-        if (line == provider_header) {
+        if (line == provider_header || line == quoted_provider_header || line == old_provider_header || line == old_unquoted_provider_header || line == default_profile_header) {
           skip_provider = 1
           next
         }
@@ -707,10 +722,14 @@ build_config_body() {
     printf '\n'
   fi
 
-  printf '\n[model_providers."%s"]\n' "$escaped_provider"
+  printf '\n[model_providers.%s]\n' "$escaped_provider"
   printf 'name = "%s"\n' "$escaped_provider"
   printf 'base_url = "%s"\n' "$escaped_url"
-  printf 'wire_api = "responses"\n'
+  printf 'env_key = "%s"\n' "$escaped_env_key"
+  printf '\n[profiles.default]\n'
+  printf 'model = "%s"\n' "$escaped_model"
+  printf 'model_provider = "%s"\n' "$escaped_provider"
+  printf 'reasoning_effort = "%s"\n' "$escaped_effort"
 }
 
 config_b64="$(build_config_body | base64 | tr -d '\n')"
@@ -799,10 +818,10 @@ Write-Auth $apiKey
 Install-ImageHelper
 Install-WslConfig $apiKey
 
-if ($SkipApiCheck -or (Test-EnvFlag $env:NEUROGATE_SKIP_API_CHECK)) {
+if ($SkipApiCheck -or (Test-EnvFlag $env:VIBEMODE_SKIP_API_CHECK)) {
     Log "Проверка /v1/models пропущена"
 } else {
-    Log "Проверяю NeuroGate API через /v1/models..."
+    Log "Проверяю Vibemode API через /v1/models..."
     $models = Check-Models $apiKey
     Log ""
     Log "API готов"

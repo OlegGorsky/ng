@@ -32,7 +32,7 @@ except ModuleNotFoundError:  # pragma: no cover - Python <3.11 fallback
 
 
 DEFAULT_OUTPUT = "output/imagegen/generated-image.png"
-DEFAULT_MODEL = "gpt-5.5"
+DEFAULT_MODEL = "gpt-5.4"
 CODEX_HOME = pathlib.Path(os.environ.get("CODEX_HOME", pathlib.Path.home() / ".codex")).expanduser()
 MAX_IMAGE_BYTES = 50 * 1024 * 1024
 SIZE_PRESETS = {
@@ -83,7 +83,7 @@ def env(name: str) -> str | None:
     return value if value and value.strip() else None
 
 
-def load_codex_auth_key() -> str | None:
+def load_codex_auth_key(preferred_key: str | None = None) -> str | None:
     auth_path = CODEX_HOME / "auth.json"
     if not auth_path.exists():
         return None
@@ -93,7 +93,12 @@ def load_codex_auth_key() -> str | None:
     except Exception:
         return None
 
-    for key in ("OPENAI_API_KEY", "openai_api_key", "api_key"):
+    auth_keys = []
+    if preferred_key:
+        auth_keys.append(preferred_key)
+    auth_keys.append("CODEX_KEY")
+
+    for key in dict.fromkeys(auth_keys):
         value = data.get(key)
         if isinstance(value, str) and value.strip():
             return value.strip()
@@ -120,8 +125,19 @@ def config_value(data: dict[str, Any], *keys: str) -> str | None:
     return None
 
 
-def selected_provider_config(data: dict[str, Any]) -> dict[str, Any]:
-    provider_name = config_value(data, "model_provider", "provider")
+def default_profile_config(data: dict[str, Any]) -> dict[str, Any]:
+    profiles = data.get("profiles")
+    if not isinstance(profiles, dict):
+        return {}
+    profile = profiles.get("default")
+    return profile if isinstance(profile, dict) else {}
+
+
+def selected_provider_config(data: dict[str, Any], profile_config: dict[str, Any]) -> dict[str, Any]:
+    provider_name = (
+        config_value(profile_config, "model_provider", "provider")
+        or config_value(data, "model_provider", "provider")
+    )
     providers = data.get("model_providers")
     if not provider_name or not isinstance(providers, dict):
         return {}
@@ -131,10 +147,16 @@ def selected_provider_config(data: dict[str, Any]) -> dict[str, Any]:
 
 def resolve_config() -> Config:
     codex_config = load_codex_config()
-    provider_config = selected_provider_config(codex_config)
-    api_key = env("OPENAI_API_KEY") or load_codex_auth_key()
+    profile_config = default_profile_config(codex_config)
+    provider_config = selected_provider_config(codex_config, profile_config)
+    provider_env_key = config_value(provider_config, "env_key")
+    api_key = (
+        (env(provider_env_key) if provider_env_key else None)
+        or env("CODEX_KEY")
+        or load_codex_auth_key(provider_env_key)
+    )
     if not api_key:
-        raise ImageGenerationError("OPENAI_API_KEY not found")
+        raise ImageGenerationError("CODEX_KEY not found")
 
     base_url = (
         env("OPENAI_BASE_URL")
@@ -145,6 +167,7 @@ def resolve_config() -> Config:
     model = (
         env("IMAGE_MODEL")
         or env("OPENAI_MODEL")
+        or config_value(profile_config, "model", "openai_model")
         or config_value(provider_config, "model", "openai_model")
         or config_value(codex_config, "model", "openai_model")
         or DEFAULT_MODEL

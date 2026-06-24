@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SETUP_URL="${NEUROGATE_CODEX_SETUP_URL:-https://raw.githubusercontent.com/OlegGorsky/neurogate-codex-termux/main/setup-neurogate-codex-termux.sh}"
+SETUP_URL="${VIBEMODE_CODEX_SETUP_URL:-https://raw.githubusercontent.com/OlegGorsky/ng/main/setup-vibemode-codex-termux.sh}"
 
 tmp_parent="${TMPDIR:-${PREFIX:-}/tmp}"
 if [[ -z "$tmp_parent" || ! -d "$tmp_parent" ]]; then
   tmp_parent="${HOME:-.}"
 fi
 
-tmp="$(mktemp "$tmp_parent/neurogate-codex-setup.XXXXXX")"
+tmp="$(mktemp "$tmp_parent/vibemode-codex-setup.XXXXXX")"
 cleanup() {
   rm -f "$tmp"
 }

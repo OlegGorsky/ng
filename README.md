@@ -5,7 +5,7 @@
 - Codex Desktop на Ubuntu/Linux, macOS и Windows.
 - Codex CLI в Termux.
 
-Скрипты прописывают Vibemode API в Codex config, сохраняют ключ в `auth.json`, проверяют `/v1/models` и не печатают API-ключ в терминал.
+Скрипты прописывают Vibemode API в Codex config, сохраняют ключ в `auth.json`, настраивают `CODEX_KEY` для Codex CLI, проверяют `/v1/models` и не печатают API-ключ в терминал.
 
 ## Что выбрать
 
@@ -41,10 +41,11 @@ curl -fsSL https://raw.githubusercontent.com/OlegGorsky/ng/main/i | bash
 2. Если ключа ещё нет, попросит вставить Vibemode API key маскированным вводом: одна `*` на каждый символ.
 3. Если `auth.json` уже есть, скрипт покажет маскированный prompt: Enter оставляет старый ключ, `r` запускает замену, вставка нового ключа сразу заменяет старый.
 4. Скрипт обновит `config.toml` на Vibemode provider.
-5. Скрипт проверит ключ через `GET https://api.vibemod.pro/v1/models`.
-6. Для Codex Desktop дополнительно поставит helper для генерации картинок.
-7. Windows-скрипт проверит WSL и, если default distro готов, запишет туда тот же `config.toml`, `auth.json` и image helper.
-8. После Desktop-настройки перезапусти Codex Desktop.
+5. В Termux скрипт дополнительно запишет приватный `~/.codex/vibemode.env` и подключит его из shell startup files.
+6. Скрипт проверит ключ через `GET https://api.vibemod.pro/v1/models`.
+7. Для Codex Desktop дополнительно поставит helper для генерации картинок.
+8. Windows-скрипт проверит WSL и, если default distro готов, запишет туда тот же `config.toml`, `auth.json` и image helper.
+9. После Desktop-настройки перезапусти Codex Desktop.
 
 Короткие `curl ... | bash` команды тоже умеют спрашивать ключ: bash-скрипты читают ввод с терминала, а не из pipe.
 
@@ -81,6 +82,8 @@ reasoning_effort = "medium"
 - Ubuntu/Linux/macOS/Termux: `~/.codex/config.toml` и `~/.codex/auth.json`
 - Windows: `%USERPROFILE%\.codex\config.toml` и `%USERPROFILE%\.codex\auth.json`
 - WSL при запуске Windows-скрипта: `~/.codex/config.toml` и `~/.codex/auth.json` внутри default WSL-дистрибутива
+
+В Termux Codex CLI читает custom provider key из переменной окружения `CODEX_KEY`, поэтому скрипт также пишет `~/.codex/vibemode.env` и добавляет его подключение в `~/.profile`, а также в `.bashrc` или `.zshrc`, если они используются. После запуска через `curl ... | bash` текущая вкладка Termux не может автоматически получить переменную из дочернего `bash`; выполни команду, которую скрипт покажет в конце, или открой новую вкладку Termux.
 
 Для WSL используется текущий default user выбранного дистрибутива. Если default user в WSL — `oleg`, путь будет вроде `/home/oleg/.codex`; если default user — `root`, путь будет `/root/.codex`. Скрипт выводит WSL user, `HOME` и итоговый config dir в лог.
 

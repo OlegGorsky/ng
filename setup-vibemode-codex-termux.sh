@@ -74,6 +74,9 @@ done
 CODEX_DIR="${CODEX_HOME:-$HOME/.codex}"
 CONFIG_FILE="$CODEX_DIR/config.toml"
 AUTH_FILE="$CODEX_DIR/auth.json"
+SHELL_ENV_FILE="$CODEX_DIR/vibemode.env"
+SHELL_ENV_BEGIN='# >>> vibemode codex >>>'
+SHELL_ENV_END='# <<< vibemode codex <<<'
 
 is_termux() {
   [[ "${PREFIX:-}" == *'/com.termux/'* ]] && return 0
@@ -119,6 +122,11 @@ json_escape() {
 
 toml_escape() {
   json_escape "$1"
+}
+
+shell_escape() {
+  local value="$1"
+  printf "'%s'" "$(printf '%s' "$value" | sed "s/'/'\\\\''/g")"
 }
 
 trim_key() {
@@ -390,6 +398,72 @@ JSON
   write_if_changed "$AUTH_FILE" "$tmp" 600
 }
 
+file_mode() {
+  local path="$1"
+  if [[ -f "$path" ]]; then
+    stat -c '%a' "$path" 2>/dev/null || stat -f '%Lp' "$path" 2>/dev/null || printf '644'
+  else
+    printf '644'
+  fi
+}
+
+write_shell_env() {
+  mkdir -p "$CODEX_DIR"
+  chmod 700 "$CODEX_DIR"
+
+  local tmp escaped_key
+  tmp="$(mktemp "$CODEX_DIR/vibemode.env.tmp.XXXXXX")"
+  escaped_key="$(shell_escape "$API_KEY")"
+  printf 'export %s=%s\n' "$ENV_KEY" "$escaped_key" > "$tmp"
+  write_if_changed "$SHELL_ENV_FILE" "$tmp" 600
+}
+
+update_shell_startup_file() {
+  local path="$1"
+  local tmp mode quoted_env
+  mode="$(file_mode "$path")"
+  tmp="$(mktemp "$path.tmp.XXXXXX")"
+  quoted_env="$(shell_escape "$SHELL_ENV_FILE")"
+
+  if [[ -f "$path" ]]; then
+    awk -v begin="$SHELL_ENV_BEGIN" -v end="$SHELL_ENV_END" '
+      $0 == begin { skip = 1; next }
+      $0 == end { skip = 0; next }
+      !skip { print }
+    ' "$path" > "$tmp"
+    [[ -s "$tmp" ]] && printf '\n' >> "$tmp"
+  fi
+
+  {
+    printf '%s\n' "$SHELL_ENV_BEGIN"
+    printf '[ -f %s ] && . %s\n' "$quoted_env" "$quoted_env"
+    printf '%s\n' "$SHELL_ENV_END"
+  } >> "$tmp"
+
+  write_if_changed "$path" "$tmp" "$mode"
+}
+
+configure_shell_env() {
+  write_shell_env
+  mkdir -p "$HOME"
+
+  local shell_name startup
+  shell_name="$(basename "${SHELL:-}")"
+  update_shell_startup_file "$HOME/.profile"
+
+  for startup in "$HOME/.bashrc" "$HOME/.zshrc"; do
+    case "$startup" in
+      "$HOME/.bashrc")
+        [[ -f "$startup" || "$shell_name" == 'bash' ]] || continue
+        ;;
+      "$HOME/.zshrc")
+        [[ -f "$startup" || "$shell_name" == 'zsh' ]] || continue
+        ;;
+    esac
+    update_shell_startup_file "$startup"
+  done
+}
+
 extract_models() {
   local json="$1"
 
@@ -503,6 +577,7 @@ main() {
   log "Папка Codex: $CODEX_DIR"
   write_config
   write_auth
+  configure_shell_env
 
   log 'Проверяю Vibemode API через /v1/models...'
   local models
@@ -518,10 +593,13 @@ main() {
   if command -v codex >/dev/null 2>&1; then
     log ''
     log "Codex CLI найден: $(codex --version 2>/dev/null || printf 'version unavailable')"
-    log 'Теперь можно запускать: codex'
+    log "CODEX_KEY сохранён для новых Termux-сессий: $SHELL_ENV_FILE"
+    log "Для текущей вкладки выполни: source $(shell_escape "$SHELL_ENV_FILE")"
+    log 'После этого можно запускать: codex'
   else
     log ''
     warn 'codex CLI не найден в PATH. Конфиг готов, но сам Codex нужно установить отдельно'
+    log "CODEX_KEY сохранён для новых Termux-сессий: $SHELL_ENV_FILE"
   fi
 }
 

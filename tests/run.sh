@@ -306,6 +306,7 @@ run_setup() {
   local bin_dir="$2"
   CODEX_KEY='test-api-key' \
     HOME="$home_dir" \
+    CODEX_HOME="$home_dir/.codex" \
     PATH="$bin_dir:$PATH" \
     bash "$SCRIPT" --non-interactive 2>&1
 }
@@ -315,6 +316,7 @@ run_desktop_setup() {
   local bin_dir="$2"
   CODEX_KEY='test-api-key' \
     HOME="$home_dir" \
+    CODEX_HOME="$home_dir/.codex" \
     PATH="$bin_dir:$PATH" \
     bash "$DESKTOP_SCRIPT" --non-interactive 2>&1
 }
@@ -336,6 +338,7 @@ test_creates_files_and_reports_models() {
 
   assert_file "$tmp/home/.codex/config.toml" 'creates config.toml'
   assert_file "$tmp/home/.codex/auth.json" 'creates auth.json'
+  assert_file "$tmp/home/.codex/vibemode.env" 'creates shell env file'
   assert_contains "$tmp/home/.codex/config.toml" 'model = "gpt-5.4"' 'writes default model'
   assert_contains "$tmp/home/.codex/config.toml" 'model_provider = "vibemode"' 'selects Vibemode provider'
   assert_contains "$tmp/home/.codex/config.toml" '[model_providers.vibemode]' 'writes Vibemode provider table'
@@ -346,6 +349,8 @@ test_creates_files_and_reports_models() {
   assert_not_contains_file "$tmp/home/.codex/config.toml" 'model_reasoning_effort' 'does not write legacy root reasoning key'
   assert_not_contains_file "$tmp/home/.codex/config.toml" 'wire_api = "responses"' 'does not write legacy wire_api'
   assert_contains "$tmp/home/.codex/auth.json" '"CODEX_KEY": "test-api-key"' 'writes API key to auth.json'
+  assert_contains "$tmp/home/.codex/vibemode.env" "export CODEX_KEY='test-api-key'" 'writes shell CODEX_KEY export'
+  assert_contains "$tmp/home/.profile" '.codex/vibemode.env' 'profile sources shell env file'
   assert_not_contains_text "$output" 'test-api-key' 'does not print API key'
   assert_not_contains_text "$output" 'Authorization: Bearer' 'does not print bearer header'
   assert_not_contains_text "$output" 'gho_' 'does not print unrelated tokens'
@@ -419,6 +424,7 @@ TOML
   assert_count "$config" 'base_url = "https://api.vibemod.pro/v1"' '1' 'keeps one correct base URL'
   assert_contains "$config" 'env_key = "CODEX_KEY"' 'keeps one env key'
   assert_contains "$config" 'reasoning_effort = "medium"' 'keeps profile reasoning effort'
+  assert_count "$tmp/home/.profile" '# >>> vibemode codex >>>' '1' 'keeps one shell env source block'
   assert_not_contains_file "$config" 'api.neurogate.space' 'removes old NeuroGate URL'
   assert_not_contains_file "$config" 'NeuroGate API' 'removes old NeuroGate provider'
   assert_not_contains_file "$config" 'wire_api' 'removes legacy wire_api'
@@ -442,7 +448,7 @@ test_reuses_existing_auth_key_non_interactive() {
 }
 JSON
 
-  if ! output="$(HOME="$tmp/home" PATH="$bin:$PATH" bash "$SCRIPT" --non-interactive 2>&1)"; then
+  if ! output="$(env -u CODEX_KEY HOME="$tmp/home" CODEX_HOME="$tmp/home/.codex" PATH="$bin:$PATH" bash "$SCRIPT" --non-interactive 2>&1)"; then
     printf '%s\n' "$output" >&2
     fail 'non-interactive mode reuses existing auth.json key'
     rm -rf "$tmp"
@@ -451,6 +457,7 @@ JSON
   pass 'non-interactive mode reuses existing auth.json key'
 
   assert_contains "$auth" '"CODEX_KEY": "existing-test-api-key"' 'keeps existing API key'
+  assert_contains "$tmp/home/.codex/vibemode.env" "export CODEX_KEY='existing-test-api-key'" 'writes reused key to shell env'
   assert_not_contains_text "$output" 'existing-test-api-key' 'does not print reused API key'
 
   rm -rf "$tmp"
@@ -503,7 +510,7 @@ test_desktop_setup_reuses_existing_auth_key() {
 }
 JSON
 
-  if ! output="$(HOME="$tmp/home" PATH="$bin:$PATH" bash "$DESKTOP_SCRIPT" --non-interactive 2>&1)"; then
+  if ! output="$(env -u CODEX_KEY HOME="$tmp/home" CODEX_HOME="$tmp/home/.codex" PATH="$bin:$PATH" bash "$DESKTOP_SCRIPT" --non-interactive 2>&1)"; then
     printf '%s\n' "$output" >&2
     fail 'desktop setup reuses existing auth.json key'
     rm -rf "$tmp"
@@ -535,7 +542,7 @@ test_desktop_setup_can_replace_existing_auth_key() {
 }
 JSON
 
-  if output="$(printf 'r\nnew-test-api-key\n' | HOME="$tmp/home" CODEX_HOME="$tmp/home/.codex" \
+  if output="$(printf 'r\nnew-test-api-key\n' | env -u CODEX_KEY HOME="$tmp/home" CODEX_HOME="$tmp/home/.codex" \
     script -qfec "bash \"$DESKTOP_SCRIPT\" --skip-api-check --no-image-helper" /dev/null 2>&1)"; then
     pass 'desktop setup can replace existing auth.json key'
   else
@@ -605,7 +612,7 @@ test_desktop_setup_masks_direct_key_paste_over_existing_auth() {
 }
 JSON
 
-  if output="$(printf 'direct-test-api-key\n' | HOME="$tmp/home" CODEX_HOME="$tmp/home/.codex" \
+  if output="$(printf 'direct-test-api-key\n' | env -u CODEX_KEY HOME="$tmp/home" CODEX_HOME="$tmp/home/.codex" \
     script -qfec "bash \"$DESKTOP_SCRIPT\" --skip-api-check --no-image-helper" /dev/null 2>&1)"; then
     pass 'desktop setup accepts direct masked key paste over existing auth'
   else
@@ -634,7 +641,7 @@ test_desktop_api_check_reports_safe_details() {
   make_fake_api_error_curl "$bin"
 
   set +e
-  output="$(CODEX_KEY='test-api-key' HOME="$tmp/home" PATH="$bin:$PATH" \
+  output="$(CODEX_KEY='test-api-key' HOME="$tmp/home" CODEX_HOME="$tmp/home/.codex" PATH="$bin:$PATH" \
     bash "$DESKTOP_SCRIPT" --non-interactive --no-image-helper 2>&1)"
   status="$?"
   set -e
@@ -674,7 +681,7 @@ test_desktop_setup_can_skip_api_check_from_env() {
   mkdir -p "$bin"
   make_fake_api_error_curl "$bin"
 
-  if output="$(CODEX_KEY='test-api-key' VIBEMODE_SKIP_API_CHECK='1' HOME="$tmp/home" PATH="$bin:$PATH" \
+  if output="$(CODEX_KEY='test-api-key' VIBEMODE_SKIP_API_CHECK='1' HOME="$tmp/home" CODEX_HOME="$tmp/home/.codex" PATH="$bin:$PATH" \
     bash "$DESKTOP_SCRIPT" --non-interactive --no-image-helper 2>&1)"; then
     pass 'desktop setup can skip API check from env'
   else
@@ -1012,7 +1019,7 @@ test_desktop_interactive_prompt_reads_from_tty() {
   fi
 
   tmp="$(mktemp -d)"
-  if output="$(printf 'tty-test-key\n' | HOME="$tmp/home" CODEX_HOME="$tmp/codex" \
+  if output="$(printf 'tty-test-key\n' | env -u CODEX_KEY HOME="$tmp/home" CODEX_HOME="$tmp/codex" \
     script -qfec "bash \"$DESKTOP_SCRIPT\" --skip-api-check --no-image-helper" /dev/null 2>&1)"; then
     pass 'desktop interactive prompt reads key from tty'
   else
@@ -1091,7 +1098,7 @@ base_url = "https://api.vibemod.pro/v1"
 env_key = "CODEX_KEY"
 TOML
 
-  if output="$(CODEX_HOME="$codex" python3 - "$ROOT_DIR/scripts/responses_image.py" <<'PY' 2>&1
+  if output="$(env -u CODEX_KEY CODEX_HOME="$codex" python3 - "$ROOT_DIR/scripts/responses_image.py" <<'PY' 2>&1
 import importlib.util
 import sys
 
@@ -1134,7 +1141,7 @@ test_requires_key_when_non_interactive() {
   make_fake_curl "$bin"
 
   set +e
-  output="$(HOME="$tmp/home" PATH="$bin:$PATH" bash "$SCRIPT" --non-interactive 2>&1)"
+  output="$(env -u CODEX_KEY HOME="$tmp/home" CODEX_HOME="$tmp/home/.codex" PATH="$bin:$PATH" bash "$SCRIPT" --non-interactive 2>&1)"
   status="$?"
   set -e
 
@@ -1173,7 +1180,7 @@ test_termux_setup_can_replace_existing_auth_key() {
 }
 JSON
 
-  if output="$(printf 'new-test-api-key\n' | HOME="$tmp/home" CODEX_HOME="$tmp/home/.codex" PATH="$bin:$PATH" \
+  if output="$(printf 'new-test-api-key\n' | env -u CODEX_KEY HOME="$tmp/home" CODEX_HOME="$tmp/home/.codex" PATH="$bin:$PATH" \
     script -qfec "bash \"$SCRIPT\" --model gpt-5 --replace-key" /dev/null 2>&1)"; then
     pass 'Termux setup can replace existing auth.json key'
   else
@@ -1213,7 +1220,7 @@ test_termux_setup_masks_direct_key_paste_over_existing_auth() {
 }
 JSON
 
-  if output="$(printf 'direct-test-api-key\n' | HOME="$tmp/home" CODEX_HOME="$tmp/home/.codex" PATH="$bin:$PATH" \
+  if output="$(printf 'direct-test-api-key\n' | env -u CODEX_KEY HOME="$tmp/home" CODEX_HOME="$tmp/home/.codex" PATH="$bin:$PATH" \
     script -qfec "bash \"$SCRIPT\" --model gpt-5" /dev/null 2>&1)"; then
     pass 'Termux setup accepts direct masked key paste over existing auth'
   else
@@ -1242,7 +1249,7 @@ test_termux_api_check_reports_safe_details() {
   make_fake_api_error_curl "$bin"
 
   set +e
-  output="$(CODEX_KEY='test-api-key' HOME="$tmp/home" PATH="$bin:$PATH" \
+  output="$(CODEX_KEY='test-api-key' HOME="$tmp/home" CODEX_HOME="$tmp/home/.codex" PATH="$bin:$PATH" \
     bash "$SCRIPT" --non-interactive 2>&1)"
   status="$?"
   set -e

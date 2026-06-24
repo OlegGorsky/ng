@@ -327,6 +327,11 @@ test_creates_files_and_reports_models() {
   bin="$tmp/bin"
   mkdir -p "$bin"
   make_fake_curl "$bin"
+  cat > "$bin/codex" <<'FAKE_CODEX'
+#!/usr/bin/env bash
+printf 'codex-cli 0.140.0\n'
+FAKE_CODEX
+  chmod +x "$bin/codex"
 
   if ! output="$(run_setup "$tmp/home" "$bin")"; then
     printf '%s\n' "$output" >&2
@@ -354,6 +359,12 @@ test_creates_files_and_reports_models() {
   assert_not_contains_text "$output" 'test-api-key' 'does not print API key'
   assert_not_contains_text "$output" 'Authorization: Bearer' 'does not print bearer header'
   assert_not_contains_text "$output" 'gho_' 'does not print unrelated tokens'
+  if [[ "$output" == *'Одной строкой:'* && "$output" == *'source '* && "$output" == *'&& codex --yolo'* ]]; then
+    pass 'prints current Termux tab activation one-liner'
+  else
+    printf '%s\n' "$output" >&2
+    fail 'prints current Termux tab activation one-liner'
+  fi
 
   if [[ "$output" == *'API готов'* && "$output" == *'gpt-5.4'* && "$output" == *'gpt-5'* ]]; then
     pass 'prints ready message and available models'

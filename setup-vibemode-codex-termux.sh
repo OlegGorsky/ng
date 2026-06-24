@@ -590,16 +590,22 @@ main() {
     [[ -n "$model_id" ]] && printf ' - %s\n' "$model_id"
   done <<< "$models"
 
+  local source_command
+  source_command="source $(shell_escape "$SHELL_ENV_FILE")"
+
   if command -v codex >/dev/null 2>&1; then
     log ''
     log "Codex CLI найден: $(codex --version 2>/dev/null || printf 'version unavailable')"
     log "CODEX_KEY сохранён для новых Termux-сессий: $SHELL_ENV_FILE"
-    log "Для текущей вкладки выполни: source $(shell_escape "$SHELL_ENV_FILE")"
-    log 'После этого можно запускать: codex'
+    log 'ВАЖНО: текущая вкладка Termux ещё не видит CODEX_KEY.'
+    log "Сначала выполни: $source_command"
+    log 'Потом запускай: codex --yolo'
+    log "Одной строкой: $source_command && codex --yolo"
   else
     log ''
     warn 'codex CLI не найден в PATH. Конфиг готов, но сам Codex нужно установить отдельно'
     log "CODEX_KEY сохранён для новых Termux-сессий: $SHELL_ENV_FILE"
+    log "Для текущей вкладки выполни: $source_command"
   fi
 }
 

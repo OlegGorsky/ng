@@ -584,6 +584,98 @@ function Add-KnownPythonDirsToPath {
     }
 }
 
+function Add-KnownNodeDirsToPath {
+    $dirs = @()
+    if ($env:APPDATA) {
+        $dirs += (Join-Path $env:APPDATA "npm")
+    }
+    if ($env:ProgramFiles) {
+        $dirs += (Join-Path $env:ProgramFiles "nodejs")
+    }
+    if (${env:ProgramFiles(x86)}) {
+        $dirs += (Join-Path ${env:ProgramFiles(x86)} "nodejs")
+    }
+
+    foreach ($dir in ($dirs | Select-Object -Unique)) {
+        if ($dir -and (Test-Path -LiteralPath $dir -PathType Container)) {
+            $env:Path = $dir + ";" + $env:Path
+        }
+    }
+}
+
+function Get-NpmCommand {
+    Add-KnownNodeDirsToPath
+    $npm = Get-Command npm.cmd -ErrorAction SilentlyContinue
+    if (-not $npm) {
+        $npm = Get-Command npm -ErrorAction SilentlyContinue
+    }
+    return $npm
+}
+
+function Test-CodexCli {
+    Add-KnownNodeDirsToPath
+    $codex = Get-Command codex.cmd -ErrorAction SilentlyContinue
+    if (-not $codex) {
+        $codex = Get-Command codex -ErrorAction SilentlyContinue
+    }
+    if (-not $codex) {
+        return $false
+    }
+
+    $version = ""
+    try {
+        $version = (& $codex.Source --version 2>$null | Select-Object -First 1)
+    } catch {
+    }
+    if ($version) {
+        Log ("Codex CLI найден: " + $version)
+    } else {
+        Log ("Codex CLI найден: " + $codex.Source)
+    }
+    return $true
+}
+
+function Install-NodeForCodexCli {
+    $winget = Get-Command winget.exe -ErrorAction SilentlyContinue
+    if (-not $winget) {
+        return $false
+    }
+
+    Log "npm не найден. Пробую установить Node.js LTS через winget..."
+    $commonArgs = @("install", "--id", "OpenJS.NodeJS.LTS", "--exact", "--source", "winget", "--accept-package-agreements", "--accept-source-agreements", "--silent")
+    & $winget.Source @($commonArgs + @("--scope", "user"))
+    if ($LASTEXITCODE -ne 0) {
+        & $winget.Source @commonArgs
+    }
+    Refresh-PathFromEnvironment
+    Add-KnownNodeDirsToPath
+    return ($LASTEXITCODE -eq 0)
+}
+
+function Install-CodexCli {
+    if (Test-CodexCli) {
+        return
+    }
+
+    $npm = Get-NpmCommand
+    if (-not $npm) {
+        Install-NodeForCodexCli | Out-Null
+        $npm = Get-NpmCommand
+    }
+    if (-not $npm) {
+        Warn "Codex CLI не установлен: npm не найден. Установи Node.js LTS и запусти: npm install -g @openai/codex"
+        return
+    }
+
+    Log "Codex CLI не найден. Ставлю @openai/codex через npm..."
+    & $npm.Source install -g @openai/codex
+    Refresh-PathFromEnvironment
+    Add-KnownNodeDirsToPath
+    if (-not (Test-CodexCli)) {
+        Warn "Codex CLI установлен, но текущая PowerShell-сессия ещё не видит codex. Открой новый терминал или запусти: npx --yes @openai/codex --yolo"
+    }
+}
+
 function Get-PythonInstallerUrl {
     $version = "3.13.14"
     if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64" -or $env:PROCESSOR_ARCHITEW6432 -eq "ARM64") {
@@ -960,6 +1052,7 @@ Write-Config
 Write-Auth $apiKey
 Install-ImageHelper
 Install-WslConfig $apiKey
+Install-CodexCli
 
 if ($SkipApiCheck -or (Test-EnvFlag $env:VIBEMODE_SKIP_API_CHECK)) {
     Log "Проверка /v1/responses пропущена"

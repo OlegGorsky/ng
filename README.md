@@ -93,6 +93,8 @@ curl -fsSL https://raw.githubusercontent.com/OlegGorsky/ng/main/d | bash
 irm https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1 | iex
 ```
 
+Windows-команда также попробует поставить Codex CLI: сначала через npm, а если npm не найден — через Node.js LTS из `winget`.
+
 Если на Windows уже установлен и инициализирован WSL, эта же команда дополнительно пропишет Vibemode в default WSL-дистрибутив.
 
 Для Codex CLI в Termux:

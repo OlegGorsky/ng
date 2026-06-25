@@ -21,6 +21,31 @@ function Add-CacheBust([string]$Url) {
     return ($Url + "?cb=" + $cacheBust)
 }
 
+function Refresh-PathFromEnvironment {
+    $paths = @(
+        [Environment]::GetEnvironmentVariable("Path", "Machine"),
+        [Environment]::GetEnvironmentVariable("Path", "User"),
+        $env:Path
+    ) | Where-Object { $_ }
+    $env:Path = ($paths -join ";")
+}
+
+function Add-KnownCommandDirsToPath {
+    $dirs = @()
+    if ($env:APPDATA) {
+        $dirs += (Join-Path $env:APPDATA "npm")
+    }
+    if ($env:ProgramFiles) {
+        $dirs += (Join-Path $env:ProgramFiles "nodejs")
+    }
+
+    foreach ($dir in ($dirs | Select-Object -Unique)) {
+        if ($dir -and (Test-Path -LiteralPath $dir -PathType Container)) {
+            $env:Path = $dir + ";" + $env:Path
+        }
+    }
+}
+
 function Test-HttpUrl([string]$Url) {
     return ($Url -match '^https?://')
 }
@@ -153,6 +178,8 @@ try {
     if ($exitCode -ne 0) {
         throw "Setup failed with exit code $exitCode."
     }
+    Refresh-PathFromEnvironment
+    Add-KnownCommandDirsToPath
 } finally {
     Remove-Item -Force $tmp -ErrorAction SilentlyContinue
 }

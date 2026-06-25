@@ -161,6 +161,8 @@ Windows:
 powershell -ExecutionPolicy Bypass -File .\setup-vibemode-codex-desktop.ps1
 ```
 
+Windows setup также пробует поставить Codex CLI: `@openai/codex` через npm, а при отсутствии npm — Node.js LTS через `winget`.
+
 Полезные опции:
 
 ```bash

@@ -58,7 +58,7 @@ python3 ~/.local/bin/responses-image --list-presets
 Windows desktop setup ставит helper сюда:
 
 ```powershell
-python "$env:USERPROFILE\.local\bin\responses-image.py" --list-presets
+& "$env:USERPROFILE\.local\bin\responses-image.cmd" --list-presets
 ```
 
 ## Примеры

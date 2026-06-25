@@ -136,7 +136,7 @@ Windows setup скачивает helper в:
 Windows:
 
 ```powershell
-python "$env:USERPROFILE\.local\bin\responses-image.py" --list-presets
+& "$env:USERPROFILE\.local\bin\responses-image.cmd" --list-presets
 ```
 
 Пример генерации:

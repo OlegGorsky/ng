@@ -223,8 +223,8 @@ Ubuntu/Linux/macOS:
 Windows:
 
 ```powershell
-python "$env:USERPROFILE\.local\bin\responses-image.py" --list-presets
-python "$env:USERPROFILE\.local\bin\responses-image.py" generate "cinematic photo of a compact AI workstation" --size wide --quality high
+& "$env:USERPROFILE\.local\bin\responses-image.cmd" --list-presets
+& "$env:USERPROFILE\.local\bin\responses-image.cmd" generate "cinematic photo of a compact AI workstation" --size wide --quality high
 ```
 
 WSL после Windows-установки:

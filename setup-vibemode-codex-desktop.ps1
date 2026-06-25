@@ -33,6 +33,7 @@ $AuthFile = Join-Path $CodexDir "auth.json"
 if (-not $ImageHelperPath) {
     $ImageHelperPath = Join-Path (Join-Path $HOME ".local\bin") "responses-image.py"
 }
+$ImageHelperCommandPath = Join-Path (Split-Path -Parent $ImageHelperPath) "responses-image.cmd"
 
 function Log([string]$Message) {
     Write-Host $Message
@@ -636,7 +637,7 @@ function Install-ImageHelper {
     $imageHelperSource = Resolve-DownloadSource $ImageHelperSourceCandidate $DefaultImageHelperUrl "VIBEMODE_IMAGE_HELPER_URL"
     Save-DownloadedTextFile $imageHelperSource $ImageHelperPath "image helper"
 
-    $cmdPath = Join-Path $helperDir "responses-image.cmd"
+    $cmdPath = $ImageHelperCommandPath
     $helperName = Split-Path -Leaf $ImageHelperPath
     $cmdBody = @"
 @echo off
@@ -931,4 +932,4 @@ if ($SkipApiCheck -or (Test-EnvFlag $env:VIBEMODE_SKIP_API_CHECK)) {
 
 Log ""
 Log "Перезапусти Codex Desktop, чтобы он перечитал provider config."
-Log ("Пример helper для генерации картинок: python " + [char]34 + $ImageHelperPath + [char]34 + " --list-presets")
+Log ("Пример helper для генерации картинок: & " + [char]34 + $ImageHelperCommandPath + [char]34 + " --list-presets")

@@ -532,6 +532,60 @@ function Check-ResponsesApi([string]$ApiKey) {
     }
 }
 
+function Test-PythonCommand([string]$Command, [string[]]$Arguments) {
+    $cmd = Get-Command $Command -ErrorAction SilentlyContinue
+    if (-not $cmd) {
+        return $false
+    }
+
+    $previousErrorActionPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = "Continue"
+        & $cmd.Source @Arguments *> $null
+    } catch {
+        return $false
+    } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+    return ($LASTEXITCODE -eq 0)
+}
+
+function Test-PythonForImageHelper {
+    return ((Test-PythonCommand "python" @("--version")) -or (Test-PythonCommand "py" @("-3", "--version")))
+}
+
+function Install-PythonForImageHelper {
+    if (Test-PythonForImageHelper) {
+        return
+    }
+
+    $winget = Get-Command winget.exe -ErrorAction SilentlyContinue
+    if (-not $winget) {
+        Warn "python не найден в PATH, winget тоже не найден. Установи Python перед использованием responses-image."
+        return
+    }
+
+    Log "python не найден в PATH. Пробую установить Python через winget..."
+    $pythonPackages = @("Python.Python.3.14", "Python.Python.3.13", "Python.Python.3.12")
+    $installed = $false
+    foreach ($package in $pythonPackages) {
+        $wingetArgs = @("install", "--id", $package, "--exact", "--source", "winget", "--scope", "user", "--accept-package-agreements", "--accept-source-agreements", "--silent")
+        & $winget.Source @wingetArgs
+        if ($LASTEXITCODE -eq 0) {
+            $installed = $true
+            break
+        }
+    }
+
+    if (Test-PythonForImageHelper) {
+        Log "Python найден"
+    } elseif ($installed) {
+        Warn "Python установлен или установка запущена, но текущая PowerShell-сессия ещё не видит python. Открой новый терминал перед использованием responses-image."
+    } else {
+        Warn "Не удалось установить Python через winget. Установи Python перед использованием responses-image."
+    }
+}
+
 function Install-ImageHelper {
     if ($NoImageHelper) {
         return
@@ -544,13 +598,25 @@ function Install-ImageHelper {
 
     $cmdPath = Join-Path $helperDir "responses-image.cmd"
     $helperName = Split-Path -Leaf $ImageHelperPath
-    $cmdBody = "@echo off`r`npython `"%~dp0$helperName`" %*`r`n"
+    $cmdBody = @"
+@echo off
+python --version >nul 2>nul
+if %errorlevel%==0 (
+  python "%~dp0$helperName" %*
+  exit /b %errorlevel%
+)
+py -3 --version >nul 2>nul
+if %errorlevel%==0 (
+  py -3 "%~dp0$helperName" %*
+  exit /b %errorlevel%
+)
+echo Python is required for responses-image. Re-run Vibemode setup or install Python.
+exit /b 1
+"@
     Write-TextNoBom $cmdPath $cmdBody
     Log "Helper для картинок: $ImageHelperPath"
     Log "Wrapper helper для картинок: $cmdPath"
-    if (-not (Get-Command python -ErrorAction SilentlyContinue)) {
-        Warn "python не найден в PATH. Установи Python перед использованием responses-image."
-    }
+    Install-PythonForImageHelper
 }
 
 function Get-WslCommand {

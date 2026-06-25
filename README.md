@@ -117,7 +117,7 @@ curl -fsSL https://raw.githubusercontent.com/OlegGorsky/ng/main/i | bash
 6. Ключ проверится через `POST https://api.vibemod.pro/v1/responses`, если проверка не отключена.
 7. По команде `vibemode use openai` конфиг возвращается к стандартному OpenAI provider.
 8. По команде `vibemode remove` удаляются Vibemode key material и shell startup block, а Codex config переключается на OpenAI.
-9. Legacy Desktop-скрипт дополнительно ставит helper для генерации картинок.
+9. Legacy Desktop-скрипт дополнительно ставит helper для генерации картинок и на Windows мягко пробует поставить Python через `winget`, если Python не найден.
 10. Windows-скрипт проверяет WSL и, если default distro готов, записывает туда тот же `config.toml`, `auth.json` и image helper.
 11. После Desktop-настройки перезапусти Codex Desktop.
 

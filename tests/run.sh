@@ -907,6 +907,7 @@ test_desktop_powershell_static_checks() {
   assert_contains "$DESKTOP_PS" 'npm install -g @openai/codex' 'PowerShell setup tells users how to install Codex CLI'
   assert_contains "$DESKTOP_PS" 'install -g @openai/codex' 'PowerShell setup installs Codex CLI through npm'
   assert_contains "$DESKTOP_PS" 'OpenJS.NodeJS.LTS' 'PowerShell setup can install Node.js for Codex CLI'
+  assert_contains "$DESKTOP_PS" 'winget не найден, поэтому Node.js автоматически не поставить' 'PowerShell setup explains missing winget for Node install'
   assert_contains "$DESKTOP_PS" 'Join-Path $env:APPDATA "npm"' 'PowerShell setup adds npm global bin to PATH'
   assert_contains "$DESKTOP_PS" 'Install-CodexCli' 'PowerShell setup invokes Codex CLI installation'
   assert_contains "$DESKTOP_PS" '[switch]$NoWsl' 'PowerShell setup can skip WSL setup'

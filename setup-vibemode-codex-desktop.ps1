@@ -638,6 +638,7 @@ function Test-CodexCli {
 function Install-NodeForCodexCli {
     $winget = Get-Command winget.exe -ErrorAction SilentlyContinue
     if (-not $winget) {
+        Warn "winget не найден, поэтому Node.js автоматически не поставить. Установи Node.js LTS: https://nodejs.org/"
         return $false
     }
 

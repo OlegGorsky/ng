@@ -93,7 +93,7 @@ curl -fsSL https://raw.githubusercontent.com/OlegGorsky/ng/main/d | bash
 irm https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1 | iex
 ```
 
-Windows-команда также попробует поставить Codex CLI: сначала через npm, а если npm не найден — через Node.js LTS из `winget`.
+Windows-команда также попробует поставить Codex CLI: сначала через npm, а если npm не найден — через Node.js LTS через `winget` или официальный MSI с `nodejs.org`.
 
 Если на Windows уже установлен и инициализирован WSL, эта же команда дополнительно пропишет Vibemode в default WSL-дистрибутив.
 
@@ -119,7 +119,7 @@ curl -fsSL https://raw.githubusercontent.com/OlegGorsky/ng/main/i | bash
 6. Ключ проверится через `POST https://api.vibemod.pro/v1/responses`, если проверка не отключена.
 7. По команде `vibemode use openai` конфиг возвращается к стандартному OpenAI provider.
 8. По команде `vibemode remove` удаляются Vibemode key material и shell startup block, а Codex config переключается на OpenAI.
-9. Legacy Desktop-скрипт дополнительно ставит helper для генерации картинок и на Windows мягко пробует поставить Python через `winget` или `python.org`, если Python не найден.
+9. Legacy Desktop-скрипт дополнительно ставит helper для генерации картинок, Codex CLI через npm и на Windows мягко пробует поставить Python/Node.js через `winget` или официальные установщики, если их нет.
 10. Windows-скрипт проверяет WSL и, если default distro готов, записывает туда тот же `config.toml`, `auth.json` и image helper.
 11. После Desktop-настройки перезапусти Codex Desktop.
 

@@ -635,22 +635,92 @@ function Test-CodexCli {
     return $true
 }
 
-function Install-NodeForCodexCli {
-    $winget = Get-Command winget.exe -ErrorAction SilentlyContinue
-    if (-not $winget) {
-        Warn "winget не найден, поэтому Node.js автоматически не поставить. Установи Node.js LTS: https://nodejs.org/"
+function Get-NodeInstallerUrl {
+    if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64" -or $env:PROCESSOR_ARCHITEW6432 -eq "ARM64") {
+        $arch = "arm64"
+    } elseif ([Environment]::Is64BitOperatingSystem) {
+        $arch = "x64"
+    } else {
+        $arch = "x86"
+    }
+
+    $fileTag = "win-" + $arch + "-msi"
+    Enable-Tls12
+    $webClient = New-Object System.Net.WebClient
+    $webClient.Headers.Set("User-Agent", "vibemode-codex-desktop-setup")
+    if ($webClient.Proxy) {
+        $webClient.Proxy.Credentials = [System.Net.CredentialCache]::DefaultNetworkCredentials
+    }
+
+    try {
+        $index = $webClient.DownloadString("https://nodejs.org/dist/index.json") | ConvertFrom-Json
+        $release = $index | Where-Object { $_.lts -and ($_.files -contains $fileTag) } | Select-Object -First 1
+        if (-not $release) {
+            return ""
+        }
+        $file = "node-" + $release.version + "-" + $arch + ".msi"
+        return ("https://nodejs.org/dist/" + $release.version + "/" + $file)
+    } catch {
+        Warn ("Не удалось найти Node.js LTS на nodejs.org: " + $_.Exception.Message)
+        return ""
+    } finally {
+        $webClient.Dispose()
+    }
+}
+
+function Install-NodeFromNodeOrg {
+    $url = Get-NodeInstallerUrl
+    if (-not $url) {
         return $false
     }
 
-    Log "npm не найден. Пробую установить Node.js LTS через winget..."
-    $commonArgs = @("install", "--id", "OpenJS.NodeJS.LTS", "--exact", "--source", "winget", "--accept-package-agreements", "--accept-source-agreements", "--silent")
-    & $winget.Source @($commonArgs + @("--scope", "user"))
-    if ($LASTEXITCODE -ne 0) {
-        & $winget.Source @commonArgs
+    $installerPath = Join-Path ([System.IO.Path]::GetTempPath()) (Split-Path -Leaf $url)
+    Log ("winget не найден или не смог поставить Node.js. Скачиваю Node.js LTS с nodejs.org: " + $url)
+
+    $webClient = New-Object System.Net.WebClient
+    $webClient.Headers.Set("User-Agent", "vibemode-codex-desktop-setup")
+    if ($webClient.Proxy) {
+        $webClient.Proxy.Credentials = [System.Net.CredentialCache]::DefaultNetworkCredentials
     }
+
+    try {
+        Enable-Tls12
+        $webClient.DownloadFile($url, $installerPath)
+        $installerArgs = @("/i", ('"' + $installerPath + '"'), "/qn", "/norestart", "ALLUSERS=2", "MSIINSTALLPERUSER=1")
+        $process = Start-Process -FilePath "msiexec.exe" -ArgumentList $installerArgs -Wait -PassThru
+        if ($process.ExitCode -ne 0) {
+            Warn ("Node.js MSI завершился с кодом " + $process.ExitCode)
+        }
+        return ($process.ExitCode -eq 0)
+    } catch {
+        Warn ("Не удалось поставить Node.js с nodejs.org: " + $_.Exception.Message)
+        return $false
+    } finally {
+        $webClient.Dispose()
+        Remove-Item -LiteralPath $installerPath -Force -ErrorAction SilentlyContinue
+    }
+}
+
+function Install-NodeForCodexCli {
+    $winget = Get-Command winget.exe -ErrorAction SilentlyContinue
+    if ($winget) {
+        Log "npm не найден. Пробую установить Node.js LTS через winget..."
+        $commonArgs = @("install", "--id", "OpenJS.NodeJS.LTS", "--exact", "--source", "winget", "--accept-package-agreements", "--accept-source-agreements", "--silent")
+        & $winget.Source @($commonArgs + @("--scope", "user"))
+        if ($LASTEXITCODE -ne 0) {
+            & $winget.Source @commonArgs
+        }
+        Refresh-PathFromEnvironment
+        Add-KnownNodeDirsToPath
+        if (Get-NpmCommand) {
+            return $true
+        }
+    }
+
+    $installed = Install-NodeFromNodeOrg
     Refresh-PathFromEnvironment
     Add-KnownNodeDirsToPath
-    return ($LASTEXITCODE -eq 0)
+    return ($installed -and (Get-NpmCommand))
 }
 
 function Install-CodexCli {

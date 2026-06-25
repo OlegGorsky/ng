@@ -47,6 +47,8 @@ irm https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1 | iex
 
 Для работы helper-команды генерации изображений нужен Python. Если его нет, Windows setup попробует поставить Python через `winget`, затем через официальный installer с `python.org`, и продолжит настройку даже при неудачной установке.
 
+Codex CLI ставится через npm. Если npm нет, Windows setup попробует поставить Node.js LTS через `winget`, затем через официальный MSI с `nodejs.org`.
+
 Если парольный prompt плохо принимает вставку, скопируй ключ в буфер обмена и запусти:
 
 ```powershell
@@ -161,7 +163,7 @@ Windows:
 powershell -ExecutionPolicy Bypass -File .\setup-vibemode-codex-desktop.ps1
 ```
 
-Windows setup также пробует поставить Codex CLI: `@openai/codex` через npm, а при отсутствии npm — Node.js LTS через `winget`.
+Windows setup также пробует поставить Codex CLI: `@openai/codex` через npm, а при отсутствии npm — Node.js LTS через `winget` или официальный MSI с `nodejs.org`.
 
 Полезные опции:
 

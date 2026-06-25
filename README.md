@@ -7,7 +7,7 @@
 
 Основной способ установки теперь единый CLI через `npm`/`npx`. Старые короткие `curl`/PowerShell команды тоже остаются: они удобны для быстрой настройки без глобальной установки этого CLI.
 
-CLI и скрипты прописывают Vibemode API в Codex config, сохраняют ключ в `auth.json`, настраивают `CODEX_KEY` для Codex CLI, проверяют `/v1/models` и не печатают API-ключ в терминал.
+CLI и скрипты прописывают Vibemode API в Codex config, сохраняют ключ в `auth.json`, настраивают `CODEX_KEY` для Codex CLI, проверяют `/v1/responses` и не печатают API-ключ в терминал.
 
 ## Быстрый старт через npx
 
@@ -114,7 +114,7 @@ curl -fsSL https://raw.githubusercontent.com/OlegGorsky/ng/main/i | bash
 3. Если `auth.json` уже есть, можно оставить ключ, заменить его или удалить через `vibemode key remove`.
 4. `config.toml` обновится на Vibemode provider.
 5. Для Codex CLI дополнительно запишется приватный `~/.codex/vibemode.env` и подключение из shell startup files.
-6. Ключ проверится через `GET https://api.vibemod.pro/v1/models`, если проверка не отключена.
+6. Ключ проверится через `POST https://api.vibemod.pro/v1/responses`, если проверка не отключена.
 7. По команде `vibemode use openai` конфиг возвращается к стандартному OpenAI provider.
 8. По команде `vibemode remove` удаляются Vibemode key material и shell startup block, а Codex config переключается на OpenAI.
 9. Legacy Desktop-скрипт дополнительно ставит helper для генерации картинок.
@@ -163,7 +163,7 @@ reasoning_effort = "medium"
 
 Перед изменением существующих файлов создаются `.bak-YYYYmmdd-HHMMSS` бэкапы.
 
-Если проверка `/v1/models` вернула `HTTP 401`, настройки уже сохранены. Это почти всегда означает, что сервер не принял сохранённый API-ключ. Для принудительной замены ключа в Windows скопируй новый ключ в буфер и запусти:
+Если проверка `/v1/responses` вернула `HTTP 401`, настройки уже сохранены. Это почти всегда означает, что сервер не принял сохранённый API-ключ. Для принудительной замены ключа в Windows скопируй новый ключ в буфер и запусти:
 
 ```powershell
 $env:VIBEMODE_REPLACE_KEY='1'; $env:VIBEMODE_KEY_FROM_CLIPBOARD='1'; irm https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1 | iex; Remove-Item Env:\VIBEMODE_REPLACE_KEY; Remove-Item Env:\VIBEMODE_KEY_FROM_CLIPBOARD

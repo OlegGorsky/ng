@@ -114,6 +114,7 @@ make_fake_curl() {
 #!/usr/bin/env bash
 output_path=''
 write_out=''
+url=''
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -126,19 +127,21 @@ while [[ $# -gt 0 ]]; do
       shift 2
       ;;
     *)
+      if [[ "$1" == http://* || "$1" == https://* ]]; then
+        url="$1"
+      fi
       shift
       ;;
   esac
 done
 
-body='{
-  "object": "list",
-  "data": [
-    { "id": "gpt-5.4" },
-    { "id": "gpt-5" },
-    { "id": "gpt-4.1" }
-  ]
-}'
+if [[ "$url" == *'/models' ]]; then
+  body='{"error":{"message":"unexpected /models call"}}'
+  status='500'
+else
+  body='{"id":"resp_test","object":"response"}'
+  status='200'
+fi
 
 if [[ -n "$output_path" ]]; then
   printf '%s\n' "$body" > "$output_path"
@@ -147,7 +150,7 @@ else
 fi
 
 if [[ -n "$write_out" ]]; then
-  printf '200'
+  printf '%s' "$status"
 fi
 FAKE_CURL
   chmod +x "$bin_dir/curl"
@@ -241,14 +244,13 @@ PY
   exit 0
 fi
 
-body='{
-  "object": "list",
-  "data": [
-    { "id": "gpt-5.4" },
-    { "id": "gpt-5" },
-    { "id": "gpt-4.1" }
-  ]
-}'
+if [[ "$url" == *'/models' ]]; then
+  body='{"error":{"message":"unexpected /models call"}}'
+  status='500'
+else
+  body='{"id":"resp_test","object":"response"}'
+  status='200'
+fi
 
 if [[ -n "$output_path" ]]; then
   printf '%s\n' "$body" > "$output_path"
@@ -257,7 +259,7 @@ else
 fi
 
 if [[ -n "$write_out" ]]; then
-  printf '200'
+  printf '%s' "$status"
 fi
 FAKE_DESKTOP_CURL
   chmod +x "$bin_dir/curl"
@@ -444,7 +446,7 @@ FAKE_CODEX
   rm -rf "$tmp"
 }
 
-test_creates_files_and_reports_models() {
+test_creates_files_and_checks_responses_api() {
   local tmp bin output
   tmp="$(mktemp -d)"
   bin="$tmp/bin"
@@ -489,11 +491,11 @@ FAKE_CODEX
     fail 'prints current Termux tab activation one-liner'
   fi
 
-  if [[ "$output" == *'API готов'* && "$output" == *'gpt-5.4'* && "$output" == *'gpt-5'* ]]; then
-    pass 'prints ready message and available models'
+  if [[ "$output" == *'Проверяю Vibemode API через /v1/responses'* && "$output" == *'API готов'* ]]; then
+    pass 'prints ready message after Responses API check'
   else
     printf '%s\n' "$output" >&2
-    fail 'prints ready message and available models'
+    fail 'prints ready message after Responses API check'
   fi
 
   rm -rf "$tmp"
@@ -825,7 +827,7 @@ test_desktop_setup_can_skip_api_check_from_env() {
     return
   fi
 
-  if [[ "$output" == *'Проверка /v1/models пропущена'* && "$output" != *'HTTP 401'* ]]; then
+  if [[ "$output" == *'Проверка /v1/responses пропущена'* && "$output" != *'HTTP 401'* ]]; then
     pass 'desktop env skip avoids failing API check'
   else
     printf '%s\n' "$output" >&2
@@ -891,7 +893,9 @@ test_desktop_powershell_static_checks() {
   assert_contains "$DESKTOP_PS" 'download looks like HTML, not a script' 'PowerShell setup rejects HTML helper downloads'
   assert_contains "$DESKTOP_PS" 'Enable-Tls12' 'PowerShell setup can enable TLS 1.2'
   assert_contains "$DESKTOP_PS" '[System.Net.SecurityProtocolType]::Tls12' 'PowerShell setup requests TLS 1.2 when available'
-  assert_contains "$DESKTOP_PS" 'Invoke-RestMethod -Method Get' 'PowerShell setup still uses REST API for model check'
+  assert_contains "$DESKTOP_PS" 'Invoke-RestMethod -Method Post' 'PowerShell setup uses REST API for Responses API check'
+  assert_contains "$DESKTOP_PS" '$BaseUrl/responses' 'PowerShell setup checks Responses API endpoint'
+  assert_contains "$DESKTOP_PS" 'ConvertTo-Json -Compress' 'PowerShell setup sends JSON body for Responses API check'
   assert_not_contains_file "$DESKTOP_PS" 'Invoke-WebRequest -UseBasicParsing -Uri $ImageHelperUrl -OutFile $ImageHelperPath' 'PowerShell setup does not use raw Invoke-WebRequest for image helper'
   assert_contains "$DESKTOP_PS" 'Read-MaskedInput "Вставь vibemode key"' 'PowerShell setup uses masked key input'
   assert_contains "$DESKTOP_PS" 'Confirm-FoundApiKey "Сохранённый vibemode key найден" $existingKey' 'PowerShell setup masks existing-key choice prompt'
@@ -1439,7 +1443,7 @@ test_bootstrap_downloads_and_runs_setup() {
   rm -rf "$tmp"
 }
 
-test_creates_files_and_reports_models
+test_creates_files_and_checks_responses_api
 test_repairs_config_idempotently
 test_reuses_existing_auth_key_non_interactive
 test_desktop_setup_creates_config_and_image_helper

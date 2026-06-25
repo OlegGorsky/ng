@@ -510,33 +510,26 @@ function Format-ApiCheckError($ErrorRecord, [string]$ApiKey) {
 
     $suffix = if ($details.Count) { " Details: $($details -join ' | ')" } else { "" }
     $hint = " Подсказка: HTTP 401 обычно означает, что API-ключ не принят. Для замены ключа положи новый ключ в буфер и запусти: `$env:VIBEMODE_REPLACE_KEY='1'; `$env:VIBEMODE_KEY_FROM_CLIPBOARD='1'; irm https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1 | iex; Remove-Item Env:\VIBEMODE_REPLACE_KEY; Remove-Item Env:\VIBEMODE_KEY_FROM_CLIPBOARD. Чтобы только записать файлы без проверки: `$env:VIBEMODE_SKIP_API_CHECK='1'; irm https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1 | iex; Remove-Item Env:\VIBEMODE_SKIP_API_CHECK."
-    return ("Не удалось проверить /v1/models. Настройки записаны, но контрольный запрос к API не прошёл. Установка продолжит работу." + $suffix + $hint)
+    return ("Не удалось проверить /v1/responses. Настройки записаны, но контрольный запрос к API не прошёл. Установка продолжит работу." + $suffix + $hint)
 }
 
-function Check-Models([string]$ApiKey) {
+function Check-ResponsesApi([string]$ApiKey) {
     try {
         Enable-Tls12
-        $response = Invoke-RestMethod -Method Get -Uri "$BaseUrl/models" -Headers @{ Authorization = "Bearer $ApiKey" } -TimeoutSec 60
+        $body = @{
+            model = $Model
+            input = "ping"
+            max_output_tokens = 1
+        } | ConvertTo-Json -Compress
+        Invoke-RestMethod -Method Post -Uri "$BaseUrl/responses" -Headers @{
+            Authorization = "Bearer $ApiKey"
+            "Content-Type" = "application/json"
+        } -Body $body -TimeoutSec 60 | Out-Null
+        return $true
     } catch {
         Warn (Format-ApiCheckError $_ $ApiKey)
-        return @()
+        return $false
     }
-
-    $models = @()
-    if ($response.data) {
-        foreach ($item in $response.data) {
-            if ($item.id) {
-                $models += [string]$item.id
-            }
-        }
-    }
-
-    if (-not $models.Count) {
-        Warn "API ответил, но список моделей не удалось прочитать. Настройки записаны."
-        return @()
-    }
-
-    return $models | Select-Object -Unique
 }
 
 function Install-ImageHelper {
@@ -821,17 +814,12 @@ Install-ImageHelper
 Install-WslConfig $apiKey
 
 if ($SkipApiCheck -or (Test-EnvFlag $env:VIBEMODE_SKIP_API_CHECK)) {
-    Log "Проверка /v1/models пропущена"
+    Log "Проверка /v1/responses пропущена"
 } else {
-    Log "Проверяю Vibemode API через /v1/models..."
-    $models = Check-Models $apiKey
-    if ($models.Count) {
+    Log "Проверяю Vibemode API через /v1/responses..."
+    if (Check-ResponsesApi $apiKey) {
         Log ""
         Log "API готов"
-        Log "Доступные модели:"
-        foreach ($item in $models) {
-            Log " - $item"
-        }
     }
 }
 

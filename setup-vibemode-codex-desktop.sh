@@ -26,7 +26,7 @@ usage() {
 Опции:
   --non-interactive       Не спрашивать ввод. Нужен ключ в env или существующий auth.json.
   --model MODEL           Модель Codex для config.toml. По умолчанию: gpt-5.4.
-  --skip-api-check        Записать файлы без проверки /v1/models.
+  --skip-api-check        Записать файлы без проверки /v1/responses.
   --no-image-helper       Не ставить команду responses-image.
   --replace-key           Попросить новый ключ вместо переиспользования auth.json.
   --image-helper-path P   Куда поставить responses-image. По умолчанию: ~/.local/bin/responses-image.
@@ -36,7 +36,7 @@ usage() {
   CODEX_KEY               Основной способ передать Vibemode/Codex key в non-interactive режиме.
                           Если переменная пуста, переиспользуется CODEX_KEY из auth.json.
   VIBEMODE_REPLACE_KEY    Установи 1, чтобы заменить сохранённый ключ.
-  VIBEMODE_SKIP_API_CHECK Установи 1, чтобы записать файлы без проверки /v1/models.
+  VIBEMODE_SKIP_API_CHECK Установи 1, чтобы записать файлы без проверки /v1/responses.
   CODEX_HOME              Необязательная папка конфига Codex Desktop. По умолчанию: ~/.codex.
 USAGE
 }
@@ -401,48 +401,6 @@ JSON
   write_if_changed "$AUTH_FILE" "$tmp" 600
 }
 
-extract_models() {
-  local json="$1"
-
-  if command -v python3 >/dev/null 2>&1; then
-    python3 -c '
-import json, sys
-try:
-    payload = json.load(sys.stdin)
-except Exception:
-    sys.exit(0)
-for item in payload.get("data", []):
-    model_id = item.get("id")
-    if model_id:
-        print(model_id)
-' <<< "$json"
-    return 0
-  fi
-
-  if command -v node >/dev/null 2>&1; then
-    node -e '
-let input = "";
-process.stdin.on("data", chunk => input += chunk);
-process.stdin.on("end", () => {
-  try {
-    const payload = JSON.parse(input);
-    for (const item of payload.data || []) {
-      if (item && item.id) console.log(item.id);
-    }
-  } catch (_) {}
-});
-' <<< "$json"
-    return 0
-  fi
-
-  if command -v jq >/dev/null 2>&1; then
-    jq -r '.data[]?.id // empty' <<< "$json"
-    return 0
-  fi
-
-  sed -n 's/.*"id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' <<< "$json"
-}
-
 sanitize_api_error() {
   local text="$1"
   if [[ -n "${API_KEY:-}" ]]; then
@@ -467,17 +425,21 @@ api_check_failure_hint() {
   printf '%s' ' Подсказка: HTTP 401 обычно означает, что API-ключ не принят. Для короткой команды положи новый ключ в CODEX_KEY и запусти с VIBEMODE_REPLACE_KEY=1; чтобы только записать файлы без проверки, используй VIBEMODE_SKIP_API_CHECK=1.'
 }
 
-check_models() {
-  local response models status curl_status response_file error_file error_text
+check_responses_api() {
+  local response status curl_status response_file error_file error_text request_body
   response_file="$(mktemp)"
   error_file="$(mktemp)"
+  request_body="$(printf '{"model":"%s","input":"ping","max_output_tokens":1}' "$(json_escape "$MODEL")")"
 
   set +e
   status="$(curl -sS --connect-timeout 20 --max-time 60 \
+    -X POST \
     -o "$response_file" \
     -w '%{http_code}' \
-    "$BASE_URL/models" \
-    -H "Authorization: Bearer $API_KEY" 2>"$error_file")"
+    "$BASE_URL/responses" \
+    -H "Authorization: Bearer $API_KEY" \
+    -H 'Content-Type: application/json' \
+    -d "$request_body" 2>"$error_file")"
   curl_status="$?"
   set -e
 
@@ -488,23 +450,18 @@ check_models() {
   if [[ "$curl_status" -ne 0 ]]; then
     error_text="$(trim_error_details "$error_text")"
     if [[ -n "$error_text" ]]; then
-      die "не удалось проверить /v1/models. Настройки записаны, но контрольный запрос к API не прошёл. Детали: $error_text$(api_check_failure_hint)"
+      die "не удалось проверить /v1/responses. Настройки записаны, но контрольный запрос к API не прошёл. Детали: $error_text$(api_check_failure_hint)"
     fi
-    die "не удалось проверить /v1/models. Настройки записаны, но контрольный запрос к API не прошёл. curl exit code: $curl_status$(api_check_failure_hint)"
+    die "не удалось проверить /v1/responses. Настройки записаны, но контрольный запрос к API не прошёл. curl exit code: $curl_status$(api_check_failure_hint)"
   fi
 
   if [[ ! "$status" =~ ^2 ]]; then
     response="$(trim_error_details "$response")"
     if [[ -n "$response" ]]; then
-      die "не удалось проверить /v1/models. Настройки записаны, но контрольный запрос к API не прошёл. Детали: HTTP $status | $response$(api_check_failure_hint)"
+      die "не удалось проверить /v1/responses. Настройки записаны, но контрольный запрос к API не прошёл. Детали: HTTP $status | $response$(api_check_failure_hint)"
     fi
-    die "не удалось проверить /v1/models. Настройки записаны, но контрольный запрос к API не прошёл. Детали: HTTP $status$(api_check_failure_hint)"
+    die "не удалось проверить /v1/responses. Настройки записаны, но контрольный запрос к API не прошёл. Детали: HTTP $status$(api_check_failure_hint)"
   fi
-
-  models="$(extract_models "$response" | awk 'NF && !seen[$0]++')"
-  [[ -n "$models" ]] || die 'API ответил, но список моделей не удалось прочитать'
-
-  printf '%s\n' "$models"
 }
 
 install_image_helper() {
@@ -531,18 +488,13 @@ main() {
   install_image_helper
 
   if is_truthy "$SKIP_API_CHECK"; then
-    log 'Проверка /v1/models пропущена'
+    log 'Проверка /v1/responses пропущена'
   else
-    log 'Проверяю Vibemode API через /v1/models...'
-    local models
-    models="$(check_models)"
+    log 'Проверяю Vibemode API через /v1/responses...'
+    check_responses_api
 
     log ''
     log 'API готов'
-    log 'Доступные модели:'
-    while IFS= read -r model_id; do
-      [[ -n "$model_id" ]] && printf ' - %s\n' "$model_id"
-    done <<< "$models"
   fi
 
   log ''

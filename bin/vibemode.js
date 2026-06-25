@@ -35,7 +35,7 @@ Usage:
 Options:
   --non-interactive    Do not prompt for input.
   --replace-key        Ignore a saved key and read a new one.
-  --skip-api-check     Do not call ${BASE_URL}/models.
+  --skip-api-check     Do not call ${BASE_URL}/responses.
   --install-codex      Install @openai/codex during setup if missing.
   --skip-codex-install Do not offer Codex CLI installation.
   --no-shell           Do not write shell startup files.
@@ -541,15 +541,22 @@ function sanitizeApiText(text, key) {
     .replace(/sk-[A-Za-z0-9_*.-]{8,}/g, 'sk-[redacted]');
 }
 
-function checkApi(key) {
+function checkApi(key, model) {
   return new Promise((resolve, reject) => {
-    const url = new URL(`${BASE_URL}/models`);
+    const url = new URL(`${BASE_URL}/responses`);
+    const payload = JSON.stringify({
+      model: model || DEFAULT_MODEL,
+      input: 'ping',
+      max_output_tokens: 1,
+    });
     const request = https.request(url, {
-      method: 'GET',
+      method: 'POST',
       timeout: 60000,
       headers: {
         Authorization: `Bearer ${key}`,
         Accept: 'application/json',
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(payload),
       },
     }, response => {
       let body = '';
@@ -562,13 +569,7 @@ function checkApi(key) {
           reject(new Error(`API check failed: HTTP ${response.statusCode} | ${sanitizeApiText(body, key).slice(0, 500)}`));
           return;
         }
-        try {
-          const payload = JSON.parse(body);
-          const models = (payload.data || []).map(item => item && item.id).filter(Boolean);
-          resolve([...new Set(models)]);
-        } catch (_) {
-          reject(new Error('API check succeeded, but /models JSON could not be parsed.'));
-        }
+        resolve();
       });
     });
     request.on('timeout', () => {
@@ -577,7 +578,7 @@ function checkApi(key) {
     request.on('error', error => {
       reject(new Error(sanitizeApiText(error.message, key)));
     });
-    request.end();
+    request.end(payload);
   });
 }
 
@@ -657,11 +658,8 @@ async function commandSetup(options) {
   if (options.skipApiCheck) {
     console.log('api_check: skipped');
   } else {
-    const models = await checkApi(key);
+    await checkApi(key, options.model || DEFAULT_MODEL);
     console.log('api_check: ok');
-    if (models.length) {
-      console.log(`models: ${models.slice(0, 8).join(', ')}`);
-    }
   }
   console.log('run: vibemode run -- codex --yolo');
 }

@@ -464,48 +464,6 @@ configure_shell_env() {
   done
 }
 
-extract_models() {
-  local json="$1"
-
-  if command -v python3 >/dev/null 2>&1; then
-    python3 -c '
-import json, sys
-try:
-    payload = json.load(sys.stdin)
-except Exception:
-    sys.exit(0)
-for item in payload.get("data", []):
-    model_id = item.get("id")
-    if model_id:
-        print(model_id)
-' <<< "$json"
-    return 0
-  fi
-
-  if command -v node >/dev/null 2>&1; then
-    node -e '
-let input = "";
-process.stdin.on("data", chunk => input += chunk);
-process.stdin.on("end", () => {
-  try {
-    const payload = JSON.parse(input);
-    for (const item of payload.data || []) {
-      if (item && item.id) console.log(item.id);
-    }
-  } catch (_) {}
-});
-' <<< "$json"
-    return 0
-  fi
-
-  if command -v jq >/dev/null 2>&1; then
-    jq -r '.data[]?.id // empty' <<< "$json"
-    return 0
-  fi
-
-  sed -n 's/.*"id"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' <<< "$json"
-}
-
 sanitize_api_error() {
   local text="$1"
   if [[ -n "${API_KEY:-}" ]]; then
@@ -526,17 +484,21 @@ trim_error_details() {
   printf '%s' "$text"
 }
 
-check_models() {
-  local response models status curl_status response_file error_file error_text
+check_responses_api() {
+  local response status curl_status response_file error_file error_text request_body
   response_file="$(mktemp)"
   error_file="$(mktemp)"
+  request_body="$(printf '{"model":"%s","input":"ping","max_output_tokens":1}' "$(json_escape "$MODEL")")"
 
   set +e
   status="$(curl -sS --connect-timeout 20 --max-time 60 \
+    -X POST \
     -o "$response_file" \
     -w '%{http_code}' \
-    "$BASE_URL/models" \
-    -H "Authorization: Bearer $API_KEY" 2>"$error_file")"
+    "$BASE_URL/responses" \
+    -H "Authorization: Bearer $API_KEY" \
+    -H 'Content-Type: application/json' \
+    -d "$request_body" 2>"$error_file")"
   curl_status="$?"
   set -e
 
@@ -547,23 +509,18 @@ check_models() {
   if [[ "$curl_status" -ne 0 ]]; then
     error_text="$(trim_error_details "$error_text")"
     if [[ -n "$error_text" ]]; then
-      die "не удалось проверить /v1/models. Настройки записаны, но контрольный запрос к API не прошёл. Детали: $error_text"
+      die "не удалось проверить /v1/responses. Настройки записаны, но контрольный запрос к API не прошёл. Детали: $error_text"
     fi
-    die "не удалось проверить /v1/models. Настройки записаны, но контрольный запрос к API не прошёл. curl exit code: $curl_status"
+    die "не удалось проверить /v1/responses. Настройки записаны, но контрольный запрос к API не прошёл. curl exit code: $curl_status"
   fi
 
   if [[ ! "$status" =~ ^2 ]]; then
     response="$(trim_error_details "$response")"
     if [[ -n "$response" ]]; then
-      die "не удалось проверить /v1/models. Настройки записаны, но контрольный запрос к API не прошёл. Детали: HTTP $status | $response"
+      die "не удалось проверить /v1/responses. Настройки записаны, но контрольный запрос к API не прошёл. Детали: HTTP $status | $response"
     fi
-    die "не удалось проверить /v1/models. Настройки записаны, но контрольный запрос к API не прошёл. Детали: HTTP $status"
+    die "не удалось проверить /v1/responses. Настройки записаны, но контрольный запрос к API не прошёл. Детали: HTTP $status"
   fi
-
-  models="$(extract_models "$response" | awk 'NF && !seen[$0]++')"
-  [[ -n "$models" ]] || die 'API ответил, но список моделей не удалось прочитать'
-
-  printf '%s\n' "$models"
 }
 
 main() {
@@ -579,16 +536,11 @@ main() {
   write_auth
   configure_shell_env
 
-  log 'Проверяю Vibemode API через /v1/models...'
-  local models
-  models="$(check_models)"
+  log 'Проверяю Vibemode API через /v1/responses...'
+  check_responses_api
 
   log ''
   log 'API готов'
-  log 'Доступные модели:'
-  while IFS= read -r model_id; do
-    [[ -n "$model_id" ]] && printf ' - %s\n' "$model_id"
-  done <<< "$models"
 
   local source_command
   source_command="source $(shell_escape "$SHELL_ENV_FILE")"

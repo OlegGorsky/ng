@@ -897,6 +897,8 @@ test_desktop_powershell_static_checks() {
   assert_contains "$DESKTOP_PS" 'https://www.python.org/ftp/python/3.13.14/' 'PowerShell setup falls back to official Python installer'
   assert_contains "$DESKTOP_PS" '"PrependPath=1"' 'PowerShell setup adds Python to user PATH'
   assert_contains "$DESKTOP_PS" '"--scope", "user"' 'PowerShell setup installs Python in user scope'
+  assert_contains "$DESKTOP_PS" 'function Refresh-PathFromEnvironment' 'PowerShell setup can refresh PATH after Python install'
+  assert_contains "$DESKTOP_PS" '    Refresh-PathFromEnvironment' 'PowerShell setup refreshes PATH before rechecking Python'
   assert_contains "$DESKTOP_PS" 'py -3 --version >nul 2>nul' 'PowerShell image helper wrapper supports py launcher'
   assert_contains "$DESKTOP_PS" '[switch]$NoWsl' 'PowerShell setup can skip WSL setup'
   assert_contains "$DESKTOP_PS" '[string]$WslDistro' 'PowerShell setup can target a WSL distro'

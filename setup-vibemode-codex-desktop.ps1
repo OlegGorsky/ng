@@ -556,6 +556,15 @@ function Test-PythonForImageHelper {
     return ((Test-PythonCommand "python" @("--version")) -or (Test-PythonCommand "py" @("-3", "--version")))
 }
 
+function Refresh-PathFromEnvironment {
+    $paths = @(
+        [Environment]::GetEnvironmentVariable("Path", "Machine"),
+        [Environment]::GetEnvironmentVariable("Path", "User"),
+        $env:Path
+    ) | Where-Object { $_ }
+    $env:Path = ($paths -join ";")
+}
+
 function Get-PythonInstallerUrl {
     $version = "3.13.14"
     if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64" -or $env:PROCESSOR_ARCHITEW6432 -eq "ARM64") {
@@ -618,6 +627,7 @@ function Install-PythonForImageHelper {
         $installed = Install-PythonFromPythonOrg
     }
 
+    Refresh-PathFromEnvironment
     if (Test-PythonForImageHelper) {
         Log "Python найден"
     } elseif ($installed) {

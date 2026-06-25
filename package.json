@@ -1,0 +1,39 @@
+{
+  "name": "vibemode-codex",
+  "version": "0.1.0",
+  "description": "Universal Vibemode setup CLI for Codex CLI and Codex Desktop.",
+  "license": "MIT",
+  "homepage": "https://github.com/OlegGorsky/ng#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OlegGorsky/ng.git"
+  },
+  "bugs": {
+    "url": "https://github.com/OlegGorsky/ng/issues"
+  },
+  "bin": {
+    "vibemode": "bin/vibemode.js"
+  },
+  "files": [
+    "bin",
+    "docs",
+    "scripts/responses_image.py",
+    "setup-vibemode-codex-desktop.ps1",
+    "setup-vibemode-codex-desktop.sh",
+    "setup-vibemode-codex-termux.sh",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "bash tests/run.sh"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "vibemode",
+    "codex",
+    "@openai/codex",
+    "termux",
+    "wsl"
+  ]
+}

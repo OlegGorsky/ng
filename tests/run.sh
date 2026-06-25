@@ -8,6 +8,8 @@ DESKTOP_PS="$ROOT_DIR/setup-vibemode-codex-desktop.ps1"
 BOOTSTRAP="$ROOT_DIR/i"
 DESKTOP_BOOTSTRAP="$ROOT_DIR/d"
 DESKTOP_BOOTSTRAP_PS="$ROOT_DIR/d.ps1"
+PACKAGE_JSON="$ROOT_DIR/package.json"
+CLI="$ROOT_DIR/bin/vibemode.js"
 
 PASS_COUNT=0
 FAIL_COUNT=0
@@ -319,6 +321,121 @@ run_desktop_setup() {
     CODEX_HOME="$home_dir/.codex" \
     PATH="$bin_dir:$PATH" \
     bash "$DESKTOP_SCRIPT" --non-interactive 2>&1
+}
+
+run_cli() {
+  local home_dir="$1"
+  shift
+  HOME="$home_dir" \
+    CODEX_HOME="$home_dir/.codex" \
+    node "$CLI" "$@" 2>&1
+}
+
+test_npm_cli_package_metadata() {
+  assert_file "$PACKAGE_JSON" 'npm CLI package.json exists'
+  assert_file "$CLI" 'npm CLI executable exists'
+  assert_contains "$PACKAGE_JSON" '"name": "vibemode-codex"' 'package uses publishable npm package name'
+  assert_contains "$PACKAGE_JSON" '"vibemode": "bin/vibemode.js"' 'package exposes vibemode bin'
+  assert_contains "$PACKAGE_JSON" '"@openai/codex"' 'package documents Codex CLI peer tool'
+  assert_contains "$PACKAGE_JSON" '"scripts/responses_image.py"' 'package ships image helper source without Python cache directories'
+  assert_not_contains_file "$PACKAGE_JSON" '"scripts",' 'package does not include whole scripts directory'
+  if [[ -x "$CLI" ]]; then
+    pass 'npm CLI executable bit is set'
+  else
+    fail 'npm CLI executable bit is set'
+  fi
+}
+
+test_npm_cli_setup_status_openai_and_run() {
+  local tmp bin output status_output run_output config capture
+  tmp="$(mktemp -d)"
+  bin="$tmp/bin"
+  config="$tmp/home/.codex/config.toml"
+  capture="$tmp/run-env.txt"
+  mkdir -p "$bin"
+
+  cat > "$bin/codex" <<'FAKE_CODEX'
+#!/usr/bin/env bash
+printf 'CODEX_KEY=%s\n' "${CODEX_KEY:-missing}" > "$VIBEMODE_RUN_CAPTURE"
+printf 'fake codex %s\n' "$*"
+FAKE_CODEX
+  chmod +x "$bin/codex"
+
+  if ! output="$(CODEX_KEY='test-api-key' PATH="$bin:$PATH" run_cli "$tmp/home" setup --non-interactive --skip-api-check --target all)"; then
+    printf '%s\n' "$output" >&2
+    fail 'npm CLI setup writes Vibemode config'
+    rm -rf "$tmp"
+    return
+  fi
+  pass 'npm CLI setup writes Vibemode config'
+
+  assert_file "$config" 'npm CLI creates config.toml'
+  assert_file "$tmp/home/.codex/auth.json" 'npm CLI creates auth.json'
+  assert_file "$tmp/home/.codex/vibemode.env" 'npm CLI creates shell env file'
+  assert_contains "$config" 'model = "gpt-5.4"' 'npm CLI writes default model'
+  assert_contains "$config" 'model_provider = "vibemode"' 'npm CLI selects Vibemode provider'
+  assert_contains "$config" '[model_providers.vibemode]' 'npm CLI writes Vibemode provider table'
+  assert_contains "$config" 'base_url = "https://api.vibemod.pro/v1"' 'npm CLI writes Vibemode base URL'
+  assert_contains "$config" 'env_key = "CODEX_KEY"' 'npm CLI writes Codex env key'
+  assert_contains "$config" '[profiles.default]' 'npm CLI writes default profile'
+  assert_contains "$config" 'reasoning_effort = "medium"' 'npm CLI writes reasoning effort'
+  assert_contains "$tmp/home/.codex/auth.json" '"CODEX_KEY": "test-api-key"' 'npm CLI writes auth key'
+  assert_contains "$tmp/home/.codex/vibemode.env" "export CODEX_KEY='test-api-key'" 'npm CLI writes shell CODEX_KEY export'
+  assert_contains "$tmp/home/.profile" '.codex/vibemode.env' 'npm CLI wires shell startup'
+  assert_not_contains_text "$output" 'test-api-key' 'npm CLI setup does not print API key'
+
+  if ! status_output="$(PATH="$bin:$PATH" run_cli "$tmp/home" status)"; then
+    printf '%s\n' "$status_output" >&2
+    fail 'npm CLI status exits successfully'
+    rm -rf "$tmp"
+    return
+  fi
+  pass 'npm CLI status exits successfully'
+  if [[ "$status_output" == *'provider: vibemode'* && "$status_output" == *'key: saved'* ]]; then
+    pass 'npm CLI status reports Vibemode and saved key'
+  else
+    printf '%s\n' "$status_output" >&2
+    fail 'npm CLI status reports Vibemode and saved key'
+  fi
+  assert_not_contains_text "$status_output" 'test-api-key' 'npm CLI status does not print API key'
+
+  if ! run_output="$(VIBEMODE_RUN_CAPTURE="$capture" PATH="$bin:$PATH" run_cli "$tmp/home" run -- codex --yolo)"; then
+    printf '%s\n' "$run_output" >&2
+    fail 'npm CLI run launches command with saved key'
+    rm -rf "$tmp"
+    return
+  fi
+  pass 'npm CLI run launches command with saved key'
+  assert_contains "$capture" 'CODEX_KEY=test-api-key' 'npm CLI run injects saved CODEX_KEY'
+  assert_not_contains_text "$run_output" 'test-api-key' 'npm CLI run does not print API key'
+
+  if ! output="$(PATH="$bin:$PATH" run_cli "$tmp/home" use openai --non-interactive)"; then
+    printf '%s\n' "$output" >&2
+    fail 'npm CLI switches back to OpenAI config'
+    rm -rf "$tmp"
+    return
+  fi
+  pass 'npm CLI switches back to OpenAI config'
+  assert_contains "$config" 'model_provider = "openai"' 'npm CLI writes OpenAI provider'
+  assert_not_contains_file "$config" 'api.vibemod.pro' 'npm CLI removes Vibemode URL'
+  assert_not_contains_file "$config" 'NeuroGate' 'npm CLI removes old NeuroGate provider'
+  assert_not_contains_file "$config" 'wire_api' 'npm CLI removes legacy wire_api'
+
+  if ! output="$(PATH="$bin:$PATH" run_cli "$tmp/home" remove --non-interactive)"; then
+    printf '%s\n' "$output" >&2
+    fail 'npm CLI removes Vibemode key material'
+    rm -rf "$tmp"
+    return
+  fi
+  pass 'npm CLI removes Vibemode key material'
+  if [[ ! -f "$tmp/home/.codex/vibemode.env" ]]; then
+    pass 'npm CLI removes shell env file'
+  else
+    fail 'npm CLI removes shell env file'
+  fi
+  assert_not_contains_file "$tmp/home/.profile" 'vibemode codex' 'npm CLI removes shell startup block'
+
+  rm -rf "$tmp"
 }
 
 test_creates_files_and_reports_models() {
@@ -1329,6 +1446,8 @@ test_desktop_powershell_wsl_embedded_script
 test_desktop_powershell_bootstrap_url_resolution
 test_desktop_powershell_setup_download_resolution
 test_pipe_safe_prompt_static_checks
+test_npm_cli_package_metadata
+test_npm_cli_setup_status_openai_and_run
 test_desktop_interactive_prompt_reads_from_tty
 test_requires_key_when_non_interactive
 test_termux_setup_can_replace_existing_auth_key

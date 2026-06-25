@@ -5,9 +5,81 @@
 - Codex Desktop на Ubuntu/Linux, macOS и Windows.
 - Codex CLI в Termux.
 
-Скрипты прописывают Vibemode API в Codex config, сохраняют ключ в `auth.json`, настраивают `CODEX_KEY` для Codex CLI, проверяют `/v1/models` и не печатают API-ключ в терминал.
+Основной способ установки теперь единый CLI через `npm`/`npx`. Старые короткие `curl`/PowerShell команды тоже остаются: они удобны для быстрой настройки без глобальной установки этого CLI.
+
+CLI и скрипты прописывают Vibemode API в Codex config, сохраняют ключ в `auth.json`, настраивают `CODEX_KEY` для Codex CLI, проверяют `/v1/models` и не печатают API-ключ в терминал.
+
+## Быстрый старт через npx
+
+`npx` не ставит Node.js сам: нужен уже установленный Node.js/npm. В Termux это обычно:
+
+```bash
+pkg install -y nodejs
+```
+
+На Linux/macOS/Windows поставь Node.js любым привычным способом, затем запускай:
+
+```bash
+npx --yes vibemode-codex setup --install-codex
+```
+
+Команда спросит Vibemode API key скрытым вводом, установит `@openai/codex`, если Codex CLI ещё не найден, и запишет локальный Codex config для текущего пользователя. Один и тот же `~/.codex` или `%USERPROFILE%\.codex` используется Codex CLI и Codex Desktop, поэтому `--target all` является режимом по умолчанию.
+
+Если хочешь поставить CLI один раз глобально:
+
+```bash
+npm install -g vibemode-codex
+vibemode setup --install-codex
+```
+
+После глобальной установки доступны команды:
+
+```bash
+vibemode status
+vibemode key set
+vibemode key status
+vibemode key remove
+vibemode use vibemode
+vibemode use openai
+vibemode remove
+vibemode install-codex
+vibemode uninstall-codex --yes
+vibemode run -- codex --yolo
+```
+
+То же самое можно запускать без глобальной установки:
+
+```bash
+npx --yes vibemode-codex status
+npx --yes vibemode-codex key set
+npx --yes vibemode-codex use openai
+npx --yes vibemode-codex remove
+npx --yes vibemode-codex run -- codex --yolo
+```
+
+Если npm registry временно недоступен или нужна версия прямо из GitHub:
+
+```bash
+npx --yes github:OlegGorsky/ng setup --install-codex
+```
+
+`vibemode run -- codex --yolo` полезен в Termux: команда подставляет сохранённый `CODEX_KEY` только в запускаемый Codex-процесс, даже если текущая вкладка ещё не перечитала `.profile`.
 
 ## Что выбрать
+
+Рекомендуемый универсальный путь для новых пользователей:
+
+```bash
+npx --yes vibemode-codex setup --install-codex
+```
+
+Дальше запускай Codex так:
+
+```bash
+npx --yes vibemode-codex run -- codex --yolo
+```
+
+Если Node.js/npm пока нет или нужен короткий legacy-вариант, используй команды ниже.
 
 Для Codex Desktop на Ubuntu/Linux или macOS:
 
@@ -37,15 +109,17 @@ curl -fsSL https://raw.githubusercontent.com/OlegGorsky/ng/main/i | bash
 
 ## Что будет по шагам
 
-1. Скрипт найдёт Codex config directory.
+1. CLI или скрипт найдёт Codex config directory.
 2. Если ключа ещё нет, попросит вставить Vibemode API key маскированным вводом: одна `*` на каждый символ.
-3. Если `auth.json` уже есть, скрипт покажет маскированный prompt: Enter оставляет старый ключ, `r` запускает замену, вставка нового ключа сразу заменяет старый.
-4. Скрипт обновит `config.toml` на Vibemode provider.
-5. В Termux скрипт дополнительно запишет приватный `~/.codex/vibemode.env` и подключит его из shell startup files.
-6. Скрипт проверит ключ через `GET https://api.vibemod.pro/v1/models`.
-7. Для Codex Desktop дополнительно поставит helper для генерации картинок.
-8. Windows-скрипт проверит WSL и, если default distro готов, запишет туда тот же `config.toml`, `auth.json` и image helper.
-9. После Desktop-настройки перезапусти Codex Desktop.
+3. Если `auth.json` уже есть, можно оставить ключ, заменить его или удалить через `vibemode key remove`.
+4. `config.toml` обновится на Vibemode provider.
+5. Для Codex CLI дополнительно запишется приватный `~/.codex/vibemode.env` и подключение из shell startup files.
+6. Ключ проверится через `GET https://api.vibemod.pro/v1/models`, если проверка не отключена.
+7. По команде `vibemode use openai` конфиг возвращается к стандартному OpenAI provider.
+8. По команде `vibemode remove` удаляются Vibemode key material и shell startup block, а Codex config переключается на OpenAI.
+9. Legacy Desktop-скрипт дополнительно ставит helper для генерации картинок.
+10. Windows-скрипт проверяет WSL и, если default distro готов, записывает туда тот же `config.toml`, `auth.json` и image helper.
+11. После Desktop-настройки перезапусти Codex Desktop.
 
 Короткие `curl ... | bash` команды тоже умеют спрашивать ключ: bash-скрипты читают ввод с терминала, а не из pipe.
 

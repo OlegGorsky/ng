@@ -565,6 +565,25 @@ function Refresh-PathFromEnvironment {
     $env:Path = ($paths -join ";")
 }
 
+function Add-KnownPythonDirsToPath {
+    if (-not $env:LOCALAPPDATA) {
+        return
+    }
+
+    $root = Join-Path (Join-Path $env:LOCALAPPDATA "Programs") "Python"
+    if (-not (Test-Path -LiteralPath $root)) {
+        return
+    }
+
+    $dirs = Get-ChildItem -LiteralPath $root -Directory -ErrorAction SilentlyContinue |
+        Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName "python.exe") } |
+        Sort-Object Name -Descending
+    foreach ($dir in $dirs) {
+        $env:Path = $dir.FullName + ";" + $env:Path
+        return
+    }
+}
+
 function Get-PythonInstallerUrl {
     $version = "3.13.14"
     if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64" -or $env:PROCESSOR_ARCHITEW6432 -eq "ARM64") {
@@ -607,6 +626,11 @@ function Install-PythonForImageHelper {
     if (Test-PythonForImageHelper) {
         return
     }
+    Add-KnownPythonDirsToPath
+    if (Test-PythonForImageHelper) {
+        Log "Python найден"
+        return
+    }
 
     $winget = Get-Command winget.exe -ErrorAction SilentlyContinue
     $installed = $false
@@ -628,6 +652,7 @@ function Install-PythonForImageHelper {
     }
 
     Refresh-PathFromEnvironment
+    Add-KnownPythonDirsToPath
     if (Test-PythonForImageHelper) {
         Log "Python найден"
     } elseif ($installed) {
@@ -660,6 +685,12 @@ py -3 --version >nul 2>nul
 if %errorlevel%==0 (
   py -3 "%~dp0$helperName" %*
   exit /b %errorlevel%
+)
+for /d %%D in ("%LOCALAPPDATA%\Programs\Python\Python*") do (
+  if exist "%%D\python.exe" (
+    "%%D\python.exe" "%~dp0$helperName" %*
+    exit /b %errorlevel%
+  )
 )
 echo Python is required for responses-image. Re-run Vibemode setup or install Python.
 exit /b 1

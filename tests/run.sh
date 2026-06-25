@@ -146,6 +146,9 @@ if [[ "$url" == *'/models' ]]; then
 elif [[ "$payload" != *'"input":['* ]]; then
   body='{"error":{"message":"Input must be a list"}}'
   status='400'
+elif [[ "$payload" != *'"stream":true'* ]]; then
+  body='{"error":{"message":"Stream must be set to true"}}'
+  status='400'
 else
   body='{"id":"resp_test","object":"response"}'
   status='200'
@@ -263,6 +266,9 @@ if [[ "$url" == *'/models' ]]; then
 elif [[ "$payload" != *'"input":['* ]]; then
   body='{"error":{"message":"Input must be a list"}}'
   status='400'
+elif [[ "$payload" != *'"stream":true'* ]]; then
+  body='{"error":{"message":"Stream must be set to true"}}'
+  status='400'
 else
   body='{"id":"resp_test","object":"response"}'
   status='200'
@@ -359,6 +365,7 @@ test_npm_cli_package_metadata() {
   assert_contains "$PACKAGE_JSON" '"scripts/responses_image.py"' 'package ships image helper source without Python cache directories'
   assert_not_contains_file "$PACKAGE_JSON" '"scripts",' 'package does not include whole scripts directory'
   assert_contains "$CLI" "input: [{ role: 'user', content: 'ping' }]" 'npm CLI checks Responses API with list input'
+  assert_contains "$CLI" 'stream: true' 'npm CLI checks Responses API with streaming enabled'
   if node "$CLI" --help >/dev/null 2>&1; then
     pass 'npm CLI supports global help flag'
   else
@@ -887,6 +894,8 @@ test_desktop_powershell_static_checks() {
   assert_contains "$DESKTOP_PS" 'responses_image.py' 'PowerShell setup installs image helper script'
   assert_contains "$DESKTOP_PS" 'function Install-PythonForImageHelper' 'PowerShell setup can install Python for image helper'
   assert_contains "$DESKTOP_PS" 'Get-Command winget.exe' 'PowerShell setup uses winget for Python install'
+  assert_contains "$DESKTOP_PS" 'https://www.python.org/ftp/python/3.13.14/' 'PowerShell setup falls back to official Python installer'
+  assert_contains "$DESKTOP_PS" '"PrependPath=1"' 'PowerShell setup adds Python to user PATH'
   assert_contains "$DESKTOP_PS" '"--scope", "user"' 'PowerShell setup installs Python in user scope'
   assert_contains "$DESKTOP_PS" 'py -3 --version >nul 2>nul' 'PowerShell image helper wrapper supports py launcher'
   assert_contains "$DESKTOP_PS" '[switch]$NoWsl' 'PowerShell setup can skip WSL setup'
@@ -917,6 +926,7 @@ test_desktop_powershell_static_checks() {
   assert_contains "$DESKTOP_PS" 'Invoke-RestMethod -Method Post' 'PowerShell setup uses REST API for Responses API check'
   assert_contains "$DESKTOP_PS" '$BaseUrl/responses' 'PowerShell setup checks Responses API endpoint'
   assert_contains "$DESKTOP_PS" 'input = @(@{ role = "user"; content = "ping" })' 'PowerShell setup checks Responses API with list input'
+  assert_contains "$DESKTOP_PS" 'stream = $true' 'PowerShell setup checks Responses API with streaming enabled'
   assert_contains "$DESKTOP_PS" 'ConvertTo-Json -Compress -Depth 5' 'PowerShell setup sends nested JSON body for Responses API check'
   assert_not_contains_file "$DESKTOP_PS" 'Invoke-WebRequest -UseBasicParsing -Uri $ImageHelperUrl -OutFile $ImageHelperPath' 'PowerShell setup does not use raw Invoke-WebRequest for image helper'
   assert_contains "$DESKTOP_PS" 'Read-MaskedInput "Вставь vibemode key"' 'PowerShell setup uses masked key input'

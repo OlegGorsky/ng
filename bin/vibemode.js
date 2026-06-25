@@ -548,6 +548,7 @@ function checkApi(key, model) {
       model: model || DEFAULT_MODEL,
       input: [{ role: 'user', content: 'ping' }],
       max_output_tokens: 1,
+      stream: true,
     });
     const request = https.request(url, {
       method: 'POST',

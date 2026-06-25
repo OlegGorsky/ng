@@ -520,6 +520,7 @@ function Check-ResponsesApi([string]$ApiKey) {
             model = $Model
             input = @(@{ role = "user"; content = "ping" })
             max_output_tokens = 1
+            stream = $true
         } | ConvertTo-Json -Compress -Depth 5
         Invoke-RestMethod -Method Post -Uri "$BaseUrl/responses" -Headers @{
             Authorization = "Bearer $ApiKey"
@@ -554,27 +555,66 @@ function Test-PythonForImageHelper {
     return ((Test-PythonCommand "python" @("--version")) -or (Test-PythonCommand "py" @("-3", "--version")))
 }
 
+function Get-PythonInstallerUrl {
+    $version = "3.13.14"
+    if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64" -or $env:PROCESSOR_ARCHITEW6432 -eq "ARM64") {
+        $file = "python-" + $version + "-arm64.exe"
+    } elseif ([Environment]::Is64BitOperatingSystem) {
+        $file = "python-" + $version + "-amd64.exe"
+    } else {
+        $file = "python-" + $version + ".exe"
+    }
+    return ("https://www.python.org/ftp/python/3.13.14/" + $file)
+}
+
+function Install-PythonFromPythonOrg {
+    $url = Get-PythonInstallerUrl
+    $installerPath = Join-Path ([System.IO.Path]::GetTempPath()) (Split-Path -Leaf $url)
+    Log ("winget не найден или не смог поставить Python. Скачиваю Python с python.org: " + $url)
+
+    $webClient = New-Object System.Net.WebClient
+    $webClient.Headers.Set("User-Agent", "vibemode-codex-desktop-setup")
+    if ($webClient.Proxy) {
+        $webClient.Proxy.Credentials = [System.Net.CredentialCache]::DefaultNetworkCredentials
+    }
+
+    try {
+        Enable-Tls12
+        $webClient.DownloadFile($url, $installerPath)
+        $installerArgs = @("/quiet", "InstallAllUsers=0", "PrependPath=1", "Include_launcher=1", "Include_pip=1", "Include_test=0", "Shortcuts=0")
+        $process = Start-Process -FilePath $installerPath -ArgumentList $installerArgs -Wait -PassThru
+        return ($process.ExitCode -eq 0)
+    } catch {
+        Warn ("Не удалось поставить Python с python.org: " + $_.Exception.Message)
+        return $false
+    } finally {
+        $webClient.Dispose()
+        Remove-Item -LiteralPath $installerPath -Force -ErrorAction SilentlyContinue
+    }
+}
+
 function Install-PythonForImageHelper {
     if (Test-PythonForImageHelper) {
         return
     }
 
     $winget = Get-Command winget.exe -ErrorAction SilentlyContinue
-    if (-not $winget) {
-        Warn "python не найден в PATH, winget тоже не найден. Установи Python перед использованием responses-image."
-        return
+    $installed = $false
+    if ($winget) {
+        Log "python не найден в PATH. Пробую установить Python через winget..."
+        $pythonPackages = @("Python.Python.3.14", "Python.Python.3.13", "Python.Python.3.12")
+        foreach ($package in $pythonPackages) {
+            $wingetArgs = @("install", "--id", $package, "--exact", "--source", "winget", "--scope", "user", "--accept-package-agreements", "--accept-source-agreements", "--silent")
+            & $winget.Source @wingetArgs
+            if ($LASTEXITCODE -eq 0) {
+                $installed = $true
+                break
+            }
+        }
     }
 
-    Log "python не найден в PATH. Пробую установить Python через winget..."
-    $pythonPackages = @("Python.Python.3.14", "Python.Python.3.13", "Python.Python.3.12")
-    $installed = $false
-    foreach ($package in $pythonPackages) {
-        $wingetArgs = @("install", "--id", $package, "--exact", "--source", "winget", "--scope", "user", "--accept-package-agreements", "--accept-source-agreements", "--silent")
-        & $winget.Source @wingetArgs
-        if ($LASTEXITCODE -eq 0) {
-            $installed = $true
-            break
-        }
+    if (-not $installed) {
+        $installed = Install-PythonFromPythonOrg
     }
 
     if (Test-PythonForImageHelper) {
@@ -582,7 +622,7 @@ function Install-PythonForImageHelper {
     } elseif ($installed) {
         Warn "Python установлен или установка запущена, но текущая PowerShell-сессия ещё не видит python. Открой новый терминал перед использованием responses-image."
     } else {
-        Warn "Не удалось установить Python через winget. Установи Python перед использованием responses-image."
+        Warn "Не удалось установить Python автоматически. Установи Python перед использованием responses-image."
     }
 }
 

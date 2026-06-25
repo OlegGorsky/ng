@@ -911,6 +911,8 @@ test_desktop_powershell_static_checks() {
   assert_contains "$DESKTOP_PS" 'Настройки записаны, но контрольный запрос к API не прошёл' 'PowerShell setup explains files stay written after API check failure'
   assert_contains "$DESKTOP_PS" 'VIBEMODE_REPLACE_KEY' 'PowerShell setup explains key replacement on API check failure'
   assert_contains "$DESKTOP_PS" 'VIBEMODE_SKIP_API_CHECK' 'PowerShell setup explains env API check skip on API check failure'
+  assert_contains "$DESKTOP_PS" '$env:VIBEMODE_REPLACE_KEY' 'PowerShell setup shows valid env syntax for key replacement'
+  assert_contains "$DESKTOP_PS" '$env:VIBEMODE_KEY_FROM_CLIPBOARD' 'PowerShell setup shows valid env syntax for clipboard key replacement'
   assert_contains "$DESKTOP_PS" 'Bearer [redacted]' 'PowerShell setup redacts bearer tokens in errors'
   assert_not_contains_file "$DESKTOP_PS" '"sk-[A-Za-z0-9_*.-]{8,}"' 'PowerShell setup avoids PS5-sensitive regex quantifier in expandable string'
   assert_not_contains_file "$DESKTOP_PS" '"Bearer\s+[A-Za-z0-9._~+/=-]+"' 'PowerShell setup avoids regex pattern in expandable string'

@@ -509,7 +509,7 @@ function Format-ApiCheckError($ErrorRecord, [string]$ApiKey) {
     }
 
     $suffix = if ($details.Count) { " Details: $($details -join ' | ')" } else { "" }
-    $hint = " Подсказка: HTTP 401 обычно означает, что API-ключ не принят. Для короткой команды положи новый ключ в буфер и запусти с VIBEMODE_REPLACE_KEY=1 и VIBEMODE_KEY_FROM_CLIPBOARD=1; чтобы только записать файлы без проверки, используй VIBEMODE_SKIP_API_CHECK=1."
+    $hint = " Подсказка: HTTP 401 обычно означает, что API-ключ не принят. Для замены ключа положи новый ключ в буфер и запусти: `$env:VIBEMODE_REPLACE_KEY='1'; `$env:VIBEMODE_KEY_FROM_CLIPBOARD='1'; irm https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1 | iex; Remove-Item Env:\VIBEMODE_REPLACE_KEY; Remove-Item Env:\VIBEMODE_KEY_FROM_CLIPBOARD. Чтобы только записать файлы без проверки: `$env:VIBEMODE_SKIP_API_CHECK='1'; irm https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1 | iex; Remove-Item Env:\VIBEMODE_SKIP_API_CHECK."
     return ("Не удалось проверить /v1/models. Настройки записаны, но контрольный запрос к API не прошёл. Установка продолжит работу." + $suffix + $hint)
 }
 

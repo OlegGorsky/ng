@@ -589,6 +589,9 @@ function Add-KnownNodeDirsToPath {
     if ($env:APPDATA) {
         $dirs += (Join-Path $env:APPDATA "npm")
     }
+    if ($env:LOCALAPPDATA) {
+        $dirs += (Join-Path (Join-Path $env:LOCALAPPDATA "Programs") "nodejs")
+    }
     if ($env:ProgramFiles) {
         $dirs += (Join-Path $env:ProgramFiles "nodejs")
     }
@@ -601,6 +604,24 @@ function Add-KnownNodeDirsToPath {
             $env:Path = $dir + ";" + $env:Path
         }
     }
+}
+
+function Add-UserPathDir([string]$Dir) {
+    if (-not $Dir) {
+        return
+    }
+
+    $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+    $parts = @($userPath -split ';') | Where-Object { $_ }
+    foreach ($part in $parts) {
+        if ($part.TrimEnd('\') -ieq $Dir.TrimEnd('\')) {
+            return
+        }
+    }
+
+    $newPath = if ($userPath) { $userPath + ";" + $Dir } else { $Dir }
+    [Environment]::SetEnvironmentVariable("Path", $newPath, "User")
+    $env:Path = $Dir + ";" + $env:Path
 }
 
 function Get-NpmCommand {
@@ -635,7 +656,7 @@ function Test-CodexCli {
     return $true
 }
 
-function Get-NodeInstallerUrl {
+function Get-NodeZipUrl {
     if ($env:PROCESSOR_ARCHITECTURE -eq "ARM64" -or $env:PROCESSOR_ARCHITEW6432 -eq "ARM64") {
         $arch = "arm64"
     } elseif ([Environment]::Is64BitOperatingSystem) {
@@ -644,7 +665,7 @@ function Get-NodeInstallerUrl {
         $arch = "x86"
     }
 
-    $fileTag = "win-" + $arch + "-msi"
+    $fileTag = "win-" + $arch + "-zip"
     Enable-Tls12
     $webClient = New-Object System.Net.WebClient
     $webClient.Headers.Set("User-Agent", "vibemode-codex-desktop-setup")
@@ -658,7 +679,7 @@ function Get-NodeInstallerUrl {
         if (-not $release) {
             return ""
         }
-        $file = "node-" + $release.version + "-" + $arch + ".msi"
+        $file = "node-" + $release.version + "-win-" + $arch + ".zip"
         return ("https://nodejs.org/dist/" + $release.version + "/" + $file)
     } catch {
         Warn ("Не удалось найти Node.js LTS на nodejs.org: " + $_.Exception.Message)
@@ -669,13 +690,19 @@ function Get-NodeInstallerUrl {
 }
 
 function Install-NodeFromNodeOrg {
-    $url = Get-NodeInstallerUrl
+    $url = Get-NodeZipUrl
     if (-not $url) {
         return $false
     }
+    if (-not $env:LOCALAPPDATA) {
+        Warn "Не удалось выбрать папку для Node.js: LOCALAPPDATA не задан."
+        return $false
+    }
 
-    $installerPath = Join-Path ([System.IO.Path]::GetTempPath()) (Split-Path -Leaf $url)
-    Log ("winget не найден или не смог поставить Node.js. Скачиваю Node.js LTS с nodejs.org: " + $url)
+    $zipPath = Join-Path ([System.IO.Path]::GetTempPath()) (Split-Path -Leaf $url)
+    $extractDir = Join-Path ([System.IO.Path]::GetTempPath()) ("vibemode-node-" + [System.Guid]::NewGuid().ToString("N"))
+    $installDir = Join-Path (Join-Path $env:LOCALAPPDATA "Programs") "nodejs"
+    Log ("winget не найден или не смог поставить Node.js. Скачиваю Node.js LTS zip с nodejs.org: " + $url)
 
     $webClient = New-Object System.Net.WebClient
     $webClient.Headers.Set("User-Agent", "vibemode-codex-desktop-setup")
@@ -685,19 +712,31 @@ function Install-NodeFromNodeOrg {
 
     try {
         Enable-Tls12
-        $webClient.DownloadFile($url, $installerPath)
-        $installerArgs = @("/i", ('"' + $installerPath + '"'), "/qn", "/norestart", "ALLUSERS=2", "MSIINSTALLPERUSER=1")
-        $process = Start-Process -FilePath "msiexec.exe" -ArgumentList $installerArgs -Wait -PassThru
-        if ($process.ExitCode -ne 0) {
-            Warn ("Node.js MSI завершился с кодом " + $process.ExitCode)
+        $webClient.DownloadFile($url, $zipPath)
+        New-Item -ItemType Directory -Force -Path $extractDir | Out-Null
+        Expand-Archive -LiteralPath $zipPath -DestinationPath $extractDir -Force
+        $sourceDir = Get-ChildItem -LiteralPath $extractDir -Directory | Select-Object -First 1
+        if (-not $sourceDir -or -not (Test-Path -LiteralPath (Join-Path $sourceDir.FullName "npm.cmd"))) {
+            Warn "Архив Node.js не содержит npm.cmd."
+            return $false
         }
-        return ($process.ExitCode -eq 0)
+        New-Item -ItemType Directory -Force -Path (Split-Path -Parent $installDir) | Out-Null
+        if (Test-Path -LiteralPath $installDir) {
+            Remove-Item -LiteralPath $installDir -Recurse -Force
+        }
+        Move-Item -LiteralPath $sourceDir.FullName -Destination $installDir
+        Add-UserPathDir $installDir
+        if ($env:APPDATA) {
+            Add-UserPathDir (Join-Path $env:APPDATA "npm")
+        }
+        return $true
     } catch {
         Warn ("Не удалось поставить Node.js с nodejs.org: " + $_.Exception.Message)
         return $false
     } finally {
         $webClient.Dispose()
-        Remove-Item -LiteralPath $installerPath -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $zipPath -Force -ErrorAction SilentlyContinue
+        Remove-Item -LiteralPath $extractDir -Recurse -Force -ErrorAction SilentlyContinue
     }
 }
 
@@ -740,6 +779,9 @@ function Install-CodexCli {
 
     Log "Codex CLI не найден. Ставлю @openai/codex через npm..."
     & $npm.Source install -g @openai/codex
+    if ($env:APPDATA) {
+        Add-UserPathDir (Join-Path $env:APPDATA "npm")
+    }
     Refresh-PathFromEnvironment
     Add-KnownNodeDirsToPath
     if (-not (Test-CodexCli)) {

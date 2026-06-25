@@ -35,6 +35,9 @@ function Add-KnownCommandDirsToPath {
     if ($env:APPDATA) {
         $dirs += (Join-Path $env:APPDATA "npm")
     }
+    if ($env:LOCALAPPDATA) {
+        $dirs += (Join-Path (Join-Path $env:LOCALAPPDATA "Programs") "nodejs")
+    }
     if ($env:ProgramFiles) {
         $dirs += (Join-Path $env:ProgramFiles "nodejs")
     }

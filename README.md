@@ -163,7 +163,7 @@ reasoning_effort = "medium"
 
 Перед изменением существующих файлов создаются `.bak-YYYYmmdd-HHMMSS` бэкапы.
 
-Если скрипт успел записать файлы, но упал на проверке `/v1/models`, настройки уже сохранены. `HTTP 401` почти всегда означает, что сервер не принял сохранённый API-ключ. Для принудительной замены ключа в Windows скопируй новый ключ в буфер и запусти:
+Если проверка `/v1/models` вернула `HTTP 401`, настройки уже сохранены. Это почти всегда означает, что сервер не принял сохранённый API-ключ. Для принудительной замены ключа в Windows скопируй новый ключ в буфер и запусти:
 
 ```powershell
 $env:VIBEMODE_REPLACE_KEY='1'; $env:VIBEMODE_KEY_FROM_CLIPBOARD='1'; irm https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1 | iex; Remove-Item Env:\VIBEMODE_REPLACE_KEY; Remove-Item Env:\VIBEMODE_KEY_FROM_CLIPBOARD

@@ -766,7 +766,7 @@ async function commandUninstallCodex(options) {
 
 async function main() {
   const parsed = parseArgs(process.argv.slice(2));
-  if (parsed.options.help || parsed.command === 'help') {
+  if (parsed.options.help || parsed.command === 'help' || parsed.command === '--help' || parsed.command === '-h') {
     usage();
     return;
   }

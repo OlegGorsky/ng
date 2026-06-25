@@ -510,7 +510,7 @@ function Format-ApiCheckError($ErrorRecord, [string]$ApiKey) {
 
     $suffix = if ($details.Count) { " Details: $($details -join ' | ')" } else { "" }
     $hint = " Подсказка: HTTP 401 обычно означает, что API-ключ не принят. Для короткой команды положи новый ключ в буфер и запусти с VIBEMODE_REPLACE_KEY=1 и VIBEMODE_KEY_FROM_CLIPBOARD=1; чтобы только записать файлы без проверки, используй VIBEMODE_SKIP_API_CHECK=1."
-    return ("Не удалось проверить /v1/models. Настройки записаны, но контрольный запрос к API не прошёл." + $suffix + $hint)
+    return ("Не удалось проверить /v1/models. Настройки записаны, но контрольный запрос к API не прошёл. Установка продолжит работу." + $suffix + $hint)
 }
 
 function Check-Models([string]$ApiKey) {
@@ -518,7 +518,8 @@ function Check-Models([string]$ApiKey) {
         Enable-Tls12
         $response = Invoke-RestMethod -Method Get -Uri "$BaseUrl/models" -Headers @{ Authorization = "Bearer $ApiKey" } -TimeoutSec 60
     } catch {
-        Die (Format-ApiCheckError $_ $ApiKey)
+        Warn (Format-ApiCheckError $_ $ApiKey)
+        return @()
     }
 
     $models = @()
@@ -531,7 +532,8 @@ function Check-Models([string]$ApiKey) {
     }
 
     if (-not $models.Count) {
-        Die "API ответил, но список моделей не удалось прочитать."
+        Warn "API ответил, но список моделей не удалось прочитать. Настройки записаны."
+        return @()
     }
 
     return $models | Select-Object -Unique
@@ -823,11 +825,13 @@ if ($SkipApiCheck -or (Test-EnvFlag $env:VIBEMODE_SKIP_API_CHECK)) {
 } else {
     Log "Проверяю Vibemode API через /v1/models..."
     $models = Check-Models $apiKey
-    Log ""
-    Log "API готов"
-    Log "Доступные модели:"
-    foreach ($item in $models) {
-        Log " - $item"
+    if ($models.Count) {
+        Log ""
+        Log "API готов"
+        Log "Доступные модели:"
+        foreach ($item in $models) {
+            Log " - $item"
+        }
     }
 }
 

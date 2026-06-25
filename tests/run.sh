@@ -335,10 +335,16 @@ test_npm_cli_package_metadata() {
   assert_file "$PACKAGE_JSON" 'npm CLI package.json exists'
   assert_file "$CLI" 'npm CLI executable exists'
   assert_contains "$PACKAGE_JSON" '"name": "vibemode-codex"' 'package uses publishable npm package name'
+  assert_contains "$PACKAGE_JSON" '"vibemode-codex": "bin/vibemode.js"' 'package exposes npx package-name bin'
   assert_contains "$PACKAGE_JSON" '"vibemode": "bin/vibemode.js"' 'package exposes vibemode bin'
   assert_contains "$PACKAGE_JSON" '"@openai/codex"' 'package documents Codex CLI peer tool'
   assert_contains "$PACKAGE_JSON" '"scripts/responses_image.py"' 'package ships image helper source without Python cache directories'
   assert_not_contains_file "$PACKAGE_JSON" '"scripts",' 'package does not include whole scripts directory'
+  if node "$CLI" --help >/dev/null 2>&1; then
+    pass 'npm CLI supports global help flag'
+  else
+    fail 'npm CLI supports global help flag'
+  fi
   if [[ -x "$CLI" ]]; then
     pass 'npm CLI executable bit is set'
   else
@@ -900,6 +906,8 @@ test_desktop_powershell_static_checks() {
   assert_contains "$DESKTOP_PS" '$wslScript | & $wsl.Source @wslArgs 2>&1' 'PowerShell setup sends WSL script through stdin'
   assert_not_contains_file "$DESKTOP_PS" '@("--", "bash", "-s", $ApiKey)' 'PowerShell setup does not pass API key as WSL argument'
   assert_contains "$DESKTOP_PS" 'Format-ApiCheckError $_ $ApiKey' 'PowerShell setup reports API check details'
+  assert_contains "$DESKTOP_PS" 'Warn (Format-ApiCheckError $_ $ApiKey)' 'PowerShell setup warns on API check failure'
+  assert_not_contains_file "$DESKTOP_PS" 'Die (Format-ApiCheckError $_ $ApiKey)' 'PowerShell setup does not fail after writing config when API check fails'
   assert_contains "$DESKTOP_PS" 'Настройки записаны, но контрольный запрос к API не прошёл' 'PowerShell setup explains files stay written after API check failure'
   assert_contains "$DESKTOP_PS" 'VIBEMODE_REPLACE_KEY' 'PowerShell setup explains key replacement on API check failure'
   assert_contains "$DESKTOP_PS" 'VIBEMODE_SKIP_API_CHECK' 'PowerShell setup explains env API check skip on API check failure'

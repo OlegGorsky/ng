@@ -546,7 +546,7 @@ function checkApi(key, model) {
     const url = new URL(`${BASE_URL}/responses`);
     const payload = JSON.stringify({
       model: model || DEFAULT_MODEL,
-      input: 'ping',
+      input: [{ role: 'user', content: 'ping' }],
       max_output_tokens: 1,
     });
     const request = https.request(url, {

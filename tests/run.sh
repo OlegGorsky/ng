@@ -115,6 +115,7 @@ make_fake_curl() {
 output_path=''
 write_out=''
 url=''
+payload=''
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -124,6 +125,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     -w)
       write_out="$2"
+      shift 2
+      ;;
+    -d|--data|--data-raw|--data-binary|--data-ascii)
+      payload="$2"
       shift 2
       ;;
     *)
@@ -138,6 +143,9 @@ done
 if [[ "$url" == *'/models' ]]; then
   body='{"error":{"message":"unexpected /models call"}}'
   status='500'
+elif [[ "$payload" != *'"input":['* ]]; then
+  body='{"error":{"message":"Input must be a list"}}'
+  status='400'
 else
   body='{"id":"resp_test","object":"response"}'
   status='200'
@@ -216,6 +224,7 @@ make_fake_desktop_curl() {
 output_path=''
 write_out=''
 url=''
+payload=''
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -225,6 +234,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     -w)
       write_out="$2"
+      shift 2
+      ;;
+    -d|--data|--data-raw|--data-binary|--data-ascii)
+      payload="$2"
       shift 2
       ;;
     *)
@@ -247,6 +260,9 @@ fi
 if [[ "$url" == *'/models' ]]; then
   body='{"error":{"message":"unexpected /models call"}}'
   status='500'
+elif [[ "$payload" != *'"input":['* ]]; then
+  body='{"error":{"message":"Input must be a list"}}'
+  status='400'
 else
   body='{"id":"resp_test","object":"response"}'
   status='200'
@@ -342,6 +358,7 @@ test_npm_cli_package_metadata() {
   assert_contains "$PACKAGE_JSON" '"@openai/codex"' 'package documents Codex CLI peer tool'
   assert_contains "$PACKAGE_JSON" '"scripts/responses_image.py"' 'package ships image helper source without Python cache directories'
   assert_not_contains_file "$PACKAGE_JSON" '"scripts",' 'package does not include whole scripts directory'
+  assert_contains "$CLI" "input: [{ role: 'user', content: 'ping' }]" 'npm CLI checks Responses API with list input'
   if node "$CLI" --help >/dev/null 2>&1; then
     pass 'npm CLI supports global help flag'
   else
@@ -895,7 +912,8 @@ test_desktop_powershell_static_checks() {
   assert_contains "$DESKTOP_PS" '[System.Net.SecurityProtocolType]::Tls12' 'PowerShell setup requests TLS 1.2 when available'
   assert_contains "$DESKTOP_PS" 'Invoke-RestMethod -Method Post' 'PowerShell setup uses REST API for Responses API check'
   assert_contains "$DESKTOP_PS" '$BaseUrl/responses' 'PowerShell setup checks Responses API endpoint'
-  assert_contains "$DESKTOP_PS" 'ConvertTo-Json -Compress' 'PowerShell setup sends JSON body for Responses API check'
+  assert_contains "$DESKTOP_PS" 'input = @(@{ role = "user"; content = "ping" })' 'PowerShell setup checks Responses API with list input'
+  assert_contains "$DESKTOP_PS" 'ConvertTo-Json -Compress -Depth 5' 'PowerShell setup sends nested JSON body for Responses API check'
   assert_not_contains_file "$DESKTOP_PS" 'Invoke-WebRequest -UseBasicParsing -Uri $ImageHelperUrl -OutFile $ImageHelperPath' 'PowerShell setup does not use raw Invoke-WebRequest for image helper'
   assert_contains "$DESKTOP_PS" 'Read-MaskedInput "Вставь vibemode key"' 'PowerShell setup uses masked key input'
   assert_contains "$DESKTOP_PS" 'Confirm-FoundApiKey "Сохранённый vibemode key найден" $existingKey' 'PowerShell setup masks existing-key choice prompt'

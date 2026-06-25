@@ -518,9 +518,9 @@ function Check-ResponsesApi([string]$ApiKey) {
         Enable-Tls12
         $body = @{
             model = $Model
-            input = "ping"
+            input = @(@{ role = "user"; content = "ping" })
             max_output_tokens = 1
-        } | ConvertTo-Json -Compress
+        } | ConvertTo-Json -Compress -Depth 5
         Invoke-RestMethod -Method Post -Uri "$BaseUrl/responses" -Headers @{
             Authorization = "Bearer $ApiKey"
             "Content-Type" = "application/json"

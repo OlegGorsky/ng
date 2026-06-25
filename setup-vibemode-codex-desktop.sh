@@ -429,7 +429,7 @@ check_responses_api() {
   local response status curl_status response_file error_file error_text request_body
   response_file="$(mktemp)"
   error_file="$(mktemp)"
-  request_body="$(printf '{"model":"%s","input":"ping","max_output_tokens":1}' "$(json_escape "$MODEL")")"
+  request_body="$(printf '{"model":"%s","input":[{"role":"user","content":"ping"}],"max_output_tokens":1}' "$(json_escape "$MODEL")")"
 
   set +e
   status="$(curl -sS --connect-timeout 20 --max-time 60 \

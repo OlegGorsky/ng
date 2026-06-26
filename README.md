@@ -167,11 +167,11 @@ CODEX_API_KEY="..."
 
 Пути:
 
-- Ubuntu/Linux/macOS/Termux: `~/.codex/config.toml`, `~/.codex/auth.json` и `~/.codex/.env`
+- Ubuntu/Linux/macOS/Termux: `~/.codex/config.toml`, `~/.codex/auth.json`, `~/.codex/.env` и `~/.codex/vibemode.env`
 - Windows: `%USERPROFILE%\.codex\config.toml`, `%USERPROFILE%\.codex\auth.json` и `%USERPROFILE%\.codex\.env`
 - WSL при запуске Windows-скрипта: `~/.codex/config.toml`, `~/.codex/auth.json`, `~/.codex/.env` и `~/.codex/vibemode.env` внутри default WSL-дистрибутива
 
-В Termux и WSL Codex CLI читает provider key из переменных окружения, поэтому скрипт пишет `CODEX_HOME`, `CODEX_KEY`, `OPENAI_API_KEY` и `CODEX_API_KEY` в `~/.codex/vibemode.env` и добавляет его подключение в `~/.profile`; Termux также обновляет `.bashrc` или `.zshrc`, если они используются. После запуска через `curl ... | bash` текущая вкладка Termux не может автоматически получить переменную из дочернего `bash`; выполни команду, которую скрипт покажет в конце, или открой новую вкладку Termux.
+В Linux/macOS/Termux и WSL Codex CLI читает provider key из переменных окружения, поэтому скрипт пишет `CODEX_HOME`, `CODEX_KEY`, `OPENAI_API_KEY` и `CODEX_API_KEY` в `~/.codex/vibemode.env` и добавляет его подключение в `~/.profile`; если используются bash или zsh, также обновляются `.bashrc` или `.zshrc`. После запуска через `curl ... | bash` текущая вкладка Termux не может автоматически получить переменную из дочернего `bash`; выполни команду, которую скрипт покажет в конце, или открой новую вкладку Termux.
 
 Для WSL используется текущий default user выбранного дистрибутива. Если default user в WSL — `oleg`, путь будет вроде `/home/oleg/.codex`; если default user — `root`, путь будет `/root/.codex`. Скрипт выводит WSL user, `HOME` и итоговый config dir в лог.
 

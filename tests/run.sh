@@ -773,6 +773,7 @@ test_desktop_setup_creates_config_and_image_helper() {
   assert_file "$tmp/home/.codex/config.toml" 'desktop setup creates config.toml'
   assert_file "$tmp/home/.codex/auth.json" 'desktop setup creates auth.json'
   assert_file "$tmp/home/.codex/.env" 'desktop setup creates Codex Desktop env file'
+  assert_file "$tmp/home/.codex/vibemode.env" 'desktop setup creates shell env file'
   assert_file "$helper" 'desktop setup installs image helper'
   if [[ -x "$helper" ]]; then
     pass 'desktop image helper is executable'
@@ -786,6 +787,11 @@ test_desktop_setup_creates_config_and_image_helper() {
   assert_contains "$tmp/home/.codex/.env" 'CODEX_KEY="test-api-key"' 'desktop setup writes Desktop CODEX_KEY env'
   assert_contains "$tmp/home/.codex/.env" 'OPENAI_API_KEY="test-api-key"' 'desktop setup writes Desktop OPENAI_API_KEY env'
   assert_contains "$tmp/home/.codex/.env" 'CODEX_API_KEY="test-api-key"' 'desktop setup writes Desktop CODEX_API_KEY env'
+  assert_contains "$tmp/home/.codex/vibemode.env" "export CODEX_KEY='test-api-key'" 'desktop setup writes shell CODEX_KEY export'
+  assert_contains "$tmp/home/.codex/vibemode.env" "export OPENAI_API_KEY='test-api-key'" 'desktop setup writes shell OPENAI_API_KEY export'
+  assert_contains "$tmp/home/.codex/vibemode.env" "export CODEX_API_KEY='test-api-key'" 'desktop setup writes shell CODEX_API_KEY export'
+  assert_contains "$tmp/home/.codex/vibemode.env" "export CODEX_HOME='$tmp/home/.codex'" 'desktop setup writes shell CODEX_HOME export'
+  assert_contains "$tmp/home/.profile" '.codex/vibemode.env' 'desktop setup wires shell startup'
   assert_not_contains_text "$output" 'test-api-key' 'desktop setup does not print API key'
 
   rm -rf "$tmp"

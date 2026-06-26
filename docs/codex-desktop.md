@@ -79,7 +79,8 @@ reasoning_effort = "medium"
 ```json
 {
   "auth_mode": "apikey",
-  "CODEX_KEY": "..."
+  "CODEX_KEY": "...",
+  "OPENAI_API_KEY": "..."
 }
 ```
 
@@ -87,6 +88,7 @@ reasoning_effort = "medium"
 
 ```dotenv
 CODEX_KEY="..."
+OPENAI_API_KEY="..."
 ```
 
 После обновления перезапусти Codex Desktop, чтобы приложение перечитало provider config.

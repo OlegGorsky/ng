@@ -386,9 +386,10 @@ test_npm_cli_setup_status_openai_and_run() {
   capture="$tmp/run-env.txt"
   mkdir -p "$bin"
 
-  cat > "$bin/codex" <<'FAKE_CODEX'
+cat > "$bin/codex" <<'FAKE_CODEX'
 #!/usr/bin/env bash
 printf 'CODEX_KEY=%s\n' "${CODEX_KEY:-missing}" > "$VIBEMODE_RUN_CAPTURE"
+printf 'OPENAI_API_KEY=%s\n' "${OPENAI_API_KEY:-missing}" >> "$VIBEMODE_RUN_CAPTURE"
 printf 'fake codex %s\n' "$*"
 FAKE_CODEX
   chmod +x "$bin/codex"
@@ -413,8 +414,11 @@ FAKE_CODEX
   assert_contains "$config" '[profiles.default]' 'npm CLI writes default profile'
   assert_contains "$config" 'reasoning_effort = "medium"' 'npm CLI writes reasoning effort'
   assert_contains "$tmp/home/.codex/auth.json" '"CODEX_KEY": "test-api-key"' 'npm CLI writes auth key'
+  assert_contains "$tmp/home/.codex/auth.json" '"OPENAI_API_KEY": "test-api-key"' 'npm CLI writes OpenAI-compatible auth key'
   assert_contains "$tmp/home/.codex/.env" 'CODEX_KEY="test-api-key"' 'npm CLI writes Desktop CODEX_KEY env'
+  assert_contains "$tmp/home/.codex/.env" 'OPENAI_API_KEY="test-api-key"' 'npm CLI writes Desktop OPENAI_API_KEY env'
   assert_contains "$tmp/home/.codex/vibemode.env" "export CODEX_KEY='test-api-key'" 'npm CLI writes shell CODEX_KEY export'
+  assert_contains "$tmp/home/.codex/vibemode.env" "export OPENAI_API_KEY='test-api-key'" 'npm CLI writes shell OPENAI_API_KEY export'
   assert_contains "$tmp/home/.profile" '.codex/vibemode.env' 'npm CLI wires shell startup'
   assert_not_contains_text "$output" 'test-api-key' 'npm CLI setup does not print API key'
 
@@ -441,6 +445,7 @@ FAKE_CODEX
   fi
   pass 'npm CLI run launches command with saved key'
   assert_contains "$capture" 'CODEX_KEY=test-api-key' 'npm CLI run injects saved CODEX_KEY'
+  assert_contains "$capture" 'OPENAI_API_KEY=test-api-key' 'npm CLI run injects saved OPENAI_API_KEY'
   assert_not_contains_text "$run_output" 'test-api-key' 'npm CLI run does not print API key'
 
   if ! output="$(PATH="$bin:$PATH" run_cli "$tmp/home" use openai --non-interactive)"; then
@@ -505,7 +510,9 @@ FAKE_CODEX
   assert_not_contains_file "$tmp/home/.codex/config.toml" 'model_reasoning_effort' 'does not write legacy root reasoning key'
   assert_not_contains_file "$tmp/home/.codex/config.toml" 'wire_api = "responses"' 'does not write legacy wire_api'
   assert_contains "$tmp/home/.codex/auth.json" '"CODEX_KEY": "test-api-key"' 'writes API key to auth.json'
+  assert_contains "$tmp/home/.codex/auth.json" '"OPENAI_API_KEY": "test-api-key"' 'writes OpenAI-compatible API key to auth.json'
   assert_contains "$tmp/home/.codex/vibemode.env" "export CODEX_KEY='test-api-key'" 'writes shell CODEX_KEY export'
+  assert_contains "$tmp/home/.codex/vibemode.env" "export OPENAI_API_KEY='test-api-key'" 'writes shell OPENAI_API_KEY export'
   assert_contains "$tmp/home/.profile" '.codex/vibemode.env' 'profile sources shell env file'
   assert_not_contains_text "$output" 'test-api-key' 'does not print API key'
   assert_not_contains_text "$output" 'Authorization: Bearer' 'does not print bearer header'
@@ -652,7 +659,9 @@ test_desktop_setup_creates_config_and_image_helper() {
   fi
   assert_contains "$tmp/home/.codex/config.toml" 'base_url = "https://api.vibemod.pro/v1"' 'desktop setup writes Vibemode base URL'
   assert_contains "$tmp/home/.codex/auth.json" '"CODEX_KEY": "test-api-key"' 'desktop setup writes API key'
+  assert_contains "$tmp/home/.codex/auth.json" '"OPENAI_API_KEY": "test-api-key"' 'desktop setup writes OpenAI-compatible API key'
   assert_contains "$tmp/home/.codex/.env" 'CODEX_KEY="test-api-key"' 'desktop setup writes Desktop CODEX_KEY env'
+  assert_contains "$tmp/home/.codex/.env" 'OPENAI_API_KEY="test-api-key"' 'desktop setup writes Desktop OPENAI_API_KEY env'
   assert_not_contains_text "$output" 'test-api-key' 'desktop setup does not print API key'
 
   rm -rf "$tmp"
@@ -928,10 +937,13 @@ test_desktop_powershell_static_checks() {
   assert_contains "$DESKTOP_PS" 'VIBEMODE_SKIP_API_CHECK' 'PowerShell setup supports env API check skip'
   assert_contains "$DESKTOP_PS" 'vibemode key найден в переменной окружения' 'PowerShell setup asks before reusing env key interactively'
   assert_contains "$DESKTOP_PS" '$EnvKey = "CODEX_KEY"' 'PowerShell setup defaults to CODEX_KEY env key'
+  assert_contains "$DESKTOP_PS" '$OpenAiEnvKey = "OPENAI_API_KEY"' 'PowerShell setup defines OpenAI-compatible env key'
   assert_contains "$DESKTOP_PS" '$DesktopEnvFile = Join-Path $CodexDir ".env"' 'PowerShell setup targets Codex Desktop env file'
   assert_contains "$DESKTOP_PS" 'Write-DesktopEnv $apiKey' 'PowerShell setup writes Codex Desktop env file'
   assert_contains "$DESKTOP_PS" 'Set-Item -Path ("Env:" + $EnvKey) -Value $ApiKey' 'PowerShell setup sets CODEX_KEY for current CLI session'
+  assert_contains "$DESKTOP_PS" 'Set-Item -Path ("Env:" + $OpenAiEnvKey) -Value $ApiKey' 'PowerShell setup sets OPENAI_API_KEY for current CLI session'
   assert_contains "$DESKTOP_PS" '[Environment]::SetEnvironmentVariable($EnvKey, $ApiKey, "User")' 'PowerShell setup persists CODEX_KEY for new CLI sessions'
+  assert_contains "$DESKTOP_PS" '[Environment]::SetEnvironmentVariable($OpenAiEnvKey, $ApiKey, "User")' 'PowerShell setup persists OPENAI_API_KEY for new CLI sessions'
   assert_contains "$DESKTOP_PS" 'Set-CodexKeyEnvironment $apiKey' 'PowerShell setup applies CLI env key'
   assert_contains "$DESKTOP_PS" '$lines.Add("env_key = `"$escapedEnvKey`"")' 'PowerShell setup writes Vibemode env key'
   assert_contains "$DESKTOP_PS" '[profiles.default]' 'PowerShell setup writes default profile'
@@ -1089,8 +1101,8 @@ test_desktop_powershell_wsl_embedded_script() {
   base_url_b64="$(printf '%s' 'https://api.vibemod.pro/v1' | base64 | tr -d '\n')"
   model_b64="$(printf '%s' 'gpt-5.4' | base64 | tr -d '\n')"
   effort_b64="$(printf '%s' 'medium' | base64 | tr -d '\n')"
-  auth_b64="$(printf '{\n  "auth_mode": "apikey",\n  "CODEX_KEY": "test-api-key"\n}\n' | base64 | tr -d '\n')"
-  desktop_env_b64="$(printf 'CODEX_KEY="test-api-key"\n' | base64 | tr -d '\n')"
+  auth_b64="$(printf '{\n  "auth_mode": "apikey",\n  "CODEX_KEY": "test-api-key",\n  "OPENAI_API_KEY": "test-api-key"\n}\n' | base64 | tr -d '\n')"
+  desktop_env_b64="$(printf 'CODEX_KEY="test-api-key"\nOPENAI_API_KEY="test-api-key"\n' | base64 | tr -d '\n')"
   helper_b64="$(printf '#!/usr/bin/env python3\nprint("helper")\n' | base64 | tr -d '\n')"
 
   script="${script//__PROVIDER_B64__/$provider_b64}"
@@ -1126,7 +1138,9 @@ test_desktop_powershell_wsl_embedded_script() {
   assert_contains "$tmp/home/.codex/config.toml" 'reasoning_effort = "medium"' 'PowerShell WSL script writes profile reasoning effort'
   assert_not_contains_file "$tmp/home/.codex/config.toml" 'wire_api = "responses"' 'PowerShell WSL script does not write legacy wire_api'
   assert_contains "$tmp/home/.codex/auth.json" '"CODEX_KEY": "test-api-key"' 'PowerShell WSL script writes API key'
+  assert_contains "$tmp/home/.codex/auth.json" '"OPENAI_API_KEY": "test-api-key"' 'PowerShell WSL script writes OpenAI-compatible API key'
   assert_contains "$tmp/home/.codex/.env" 'CODEX_KEY="test-api-key"' 'PowerShell WSL script writes Desktop CODEX_KEY env'
+  assert_contains "$tmp/home/.codex/.env" 'OPENAI_API_KEY="test-api-key"' 'PowerShell WSL script writes Desktop OPENAI_API_KEY env'
   if [[ "$output" == *"codex_dir=$tmp/home/.codex"* && "$output" == *"home=$tmp/home"* && "$output" == *'user='* ]]; then
     pass 'PowerShell WSL script reports user home and config dir'
   else

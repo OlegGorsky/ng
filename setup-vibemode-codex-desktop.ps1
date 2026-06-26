@@ -16,6 +16,7 @@ $ProviderName = "vibemode"
 $BaseUrl = "https://api.vibemod.pro/v1"
 $DefaultReasoningEffort = "medium"
 $EnvKey = "CODEX_KEY"
+$OpenAiEnvKey = "OPENAI_API_KEY"
 $DefaultImageHelperUrl = "https://raw.githubusercontent.com/OlegGorsky/ng/main/scripts/responses_image.py"
 $ImageHelperSourceCandidate = if ($env:VIBEMODE_IMAGE_HELPER_URL) {
     $env:VIBEMODE_IMAGE_HELPER_URL
@@ -437,7 +438,7 @@ function Write-Auth([string]$ApiKey) {
 
 function Build-AuthBody([string]$ApiKey) {
     $escapedKey = JsonEscape $ApiKey
-    return "{`n  `"auth_mode`": `"apikey`",`n  `"CODEX_KEY`": `"$escapedKey`"`n}`n"
+    return "{`n  `"auth_mode`": `"apikey`",`n  `"CODEX_KEY`": `"$escapedKey`",`n  `"OPENAI_API_KEY`": `"$escapedKey`"`n}`n"
 }
 
 function Write-DesktopEnv([string]$ApiKey) {
@@ -447,12 +448,14 @@ function Write-DesktopEnv([string]$ApiKey) {
 
 function Build-DesktopEnvBody([string]$ApiKey) {
     $escapedKey = DotEnvEscape $ApiKey
-    return "CODEX_KEY=`"$escapedKey`"`n"
+    return "CODEX_KEY=`"$escapedKey`"`nOPENAI_API_KEY=`"$escapedKey`"`n"
 }
 
 function Set-CodexKeyEnvironment([string]$ApiKey) {
     Set-Item -Path ("Env:" + $EnvKey) -Value $ApiKey
+    Set-Item -Path ("Env:" + $OpenAiEnvKey) -Value $ApiKey
     [Environment]::SetEnvironmentVariable($EnvKey, $ApiKey, "User")
+    [Environment]::SetEnvironmentVariable($OpenAiEnvKey, $ApiKey, "User")
 }
 
 function Sanitize-Secret([string]$Text, [string]$ApiKey) {

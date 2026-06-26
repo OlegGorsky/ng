@@ -6,6 +6,7 @@ BASE_URL='https://api.vibemod.pro/v1'
 DEFAULT_MODEL='gpt-5.4'
 DEFAULT_REASONING_EFFORT='medium'
 ENV_KEY='CODEX_KEY'
+OPENAI_ENV_KEY='OPENAI_API_KEY'
 
 NON_INTERACTIVE=0
 REPLACE_KEY="${VIBEMODE_REPLACE_KEY:-0}"
@@ -392,7 +393,8 @@ write_auth() {
   cat > "$tmp" <<JSON
 {
   "auth_mode": "apikey",
-  "CODEX_KEY": "$escaped_key"
+  "CODEX_KEY": "$escaped_key",
+  "OPENAI_API_KEY": "$escaped_key"
 }
 JSON
   write_if_changed "$AUTH_FILE" "$tmp" 600
@@ -414,7 +416,7 @@ write_shell_env() {
   local tmp escaped_key
   tmp="$(mktemp "$CODEX_DIR/vibemode.env.tmp.XXXXXX")"
   escaped_key="$(shell_escape "$API_KEY")"
-  printf 'export %s=%s\n' "$ENV_KEY" "$escaped_key" > "$tmp"
+  printf 'export %s=%s\nexport %s=%s\n' "$ENV_KEY" "$escaped_key" "$OPENAI_ENV_KEY" "$escaped_key" > "$tmp"
   write_if_changed "$SHELL_ENV_FILE" "$tmp" 600
 }
 

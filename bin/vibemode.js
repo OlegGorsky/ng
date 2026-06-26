@@ -14,6 +14,7 @@ const DEFAULT_MODEL = 'gpt-5.4';
 const OPENAI_MODEL = 'gpt-5';
 const DEFAULT_REASONING_EFFORT = 'medium';
 const ENV_KEY = 'CODEX_KEY';
+const OPENAI_ENV_KEY = 'OPENAI_API_KEY';
 const SHELL_ENV_BEGIN = '# >>> vibemode codex >>>';
 const SHELL_ENV_END = '# <<< vibemode codex <<<';
 
@@ -308,7 +309,7 @@ function parseJsonFile(file) {
 
 function readAuthKey(paths) {
   const payload = parseJsonFile(paths.auth);
-  const value = payload[ENV_KEY];
+  const value = payload[ENV_KEY] || payload[OPENAI_ENV_KEY];
   return typeof value === 'string' && value.trim() ? value.trim() : '';
 }
 
@@ -316,6 +317,7 @@ function writeAuthKey(paths, key) {
   const payload = parseJsonFile(paths.auth);
   payload.auth_mode = 'apikey';
   payload[ENV_KEY] = key;
+  payload[OPENAI_ENV_KEY] = key;
   writeIfChanged(paths.auth, `${JSON.stringify(payload, null, 2)}\n`, 0o600);
 }
 
@@ -325,15 +327,16 @@ function removeAuthKey(paths) {
   }
   const payload = parseJsonFile(paths.auth);
   delete payload[ENV_KEY];
+  delete payload[OPENAI_ENV_KEY];
   writeIfChanged(paths.auth, `${JSON.stringify(payload, null, 2)}\n`, 0o600);
 }
 
 function writeShellEnv(paths, key) {
-  writeIfChanged(paths.envFile, `export ${ENV_KEY}=${shellEscape(key)}\n`, 0o600);
+  writeIfChanged(paths.envFile, `export ${ENV_KEY}=${shellEscape(key)}\nexport ${OPENAI_ENV_KEY}=${shellEscape(key)}\n`, 0o600);
 }
 
 function writeDesktopEnv(paths, key) {
-  writeIfChanged(paths.desktopEnv, `${ENV_KEY}=${dotenvEscape(key)}\n`, 0o600);
+  writeIfChanged(paths.desktopEnv, `${ENV_KEY}=${dotenvEscape(key)}\n${OPENAI_ENV_KEY}=${dotenvEscape(key)}\n`, 0o600);
 }
 
 function startupFiles(paths) {
@@ -749,7 +752,7 @@ function commandRun(runArgs) {
   }
 
   const [command, ...args] = runArgs;
-  const env = { ...process.env, [ENV_KEY]: key };
+  const env = { ...process.env, [ENV_KEY]: key, [OPENAI_ENV_KEY]: key };
   const result = childProcess.spawnSync(command, args, {
     env,
     stdio: 'inherit',

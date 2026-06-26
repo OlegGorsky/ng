@@ -13,7 +13,7 @@ cli_auth_credentials_store = "file"
 [model_providers.vibemode]
 name = "vibemode"
 base_url = "https://api.vibemod.pro/v1"
-env_key = "CODEX_KEY"
+requires_openai_auth = true
 ```
 
 ## Установка helper-команды

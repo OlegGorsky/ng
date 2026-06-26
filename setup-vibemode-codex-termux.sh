@@ -336,12 +336,11 @@ write_if_changed() {
 }
 
 build_config_body() {
-  local escaped_model escaped_provider escaped_url escaped_effort escaped_env_key
+  local escaped_model escaped_provider escaped_url escaped_effort
   escaped_model="$(toml_escape "$MODEL")"
   escaped_provider="$(toml_escape "$PROVIDER_NAME")"
   escaped_url="$(toml_escape "$BASE_URL")"
   escaped_effort="$(toml_escape "$DEFAULT_REASONING_EFFORT")"
-  escaped_env_key="$(toml_escape "$ENV_KEY")"
 
   printf 'model = "%s"\n' "$escaped_model"
   printf 'model_provider = "%s"\n' "$escaped_provider"
@@ -383,7 +382,7 @@ build_config_body() {
   printf '\n[model_providers.%s]\n' "$escaped_provider"
   printf 'name = "%s"\n' "$escaped_provider"
   printf 'base_url = "%s"\n' "$escaped_url"
-  printf 'env_key = "%s"\n' "$escaped_env_key"
+  printf 'requires_openai_auth = true\n'
 }
 
 write_config() {
@@ -503,7 +502,7 @@ test_codex_cli_auth() {
 
   local output status
   set +e
-  output="$(CODEX_HOME="$CODEX_DIR" CODEX_KEY="$API_KEY" OPENAI_API_KEY="$API_KEY" CODEX_API_KEY="$API_KEY" codex 2>&1 </dev/null)"
+  output="$(env -u CODEX_KEY -u OPENAI_API_KEY -u CODEX_API_KEY CODEX_HOME="$CODEX_DIR" codex 2>&1 </dev/null)"
   status="$?"
   set -e
 

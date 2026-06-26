@@ -375,7 +375,6 @@ function Build-ConfigBody {
     $escapedProvider = TomlEscape $ProviderName
     $escapedUrl = TomlEscape $BaseUrl
     $escapedEffort = TomlEscape $DefaultReasoningEffort
-    $escapedEnvKey = TomlEscape $EnvKey
     $lines = New-Object System.Collections.Generic.List[string]
 
     $lines.Add("model = `"$escapedModel`"")
@@ -429,7 +428,7 @@ function Build-ConfigBody {
     $lines.Add("[model_providers.$escapedProvider]")
     $lines.Add("name = `"$escapedProvider`"")
     $lines.Add("base_url = `"$escapedUrl`"")
-    $lines.Add("env_key = `"$escapedEnvKey`"")
+    $lines.Add("requires_openai_auth = true")
 
     return ($lines -join [Environment]::NewLine) + [Environment]::NewLine
 }
@@ -975,6 +974,13 @@ function Test-CodexCliAuth([string]$ApiKey) {
         return
     }
 
+    $apiEnvNames = @($EnvKey, $OpenAiEnvKey, $CodexApiEnvKey)
+    $savedApiEnv = @{}
+    foreach ($name in $apiEnvNames) {
+        $savedApiEnv[$name] = [Environment]::GetEnvironmentVariable($name, "Process")
+        Remove-Item -Path ("Env:" + $name) -ErrorAction SilentlyContinue
+    }
+
     $previousErrorActionPreference = $ErrorActionPreference
     try {
         $ErrorActionPreference = "Continue"
@@ -983,6 +989,13 @@ function Test-CodexCliAuth([string]$ApiKey) {
         $output = @($_.Exception.Message)
     } finally {
         $ErrorActionPreference = $previousErrorActionPreference
+        foreach ($name in $apiEnvNames) {
+            if ($null -eq $savedApiEnv[$name]) {
+                Remove-Item -Path ("Env:" + $name) -ErrorAction SilentlyContinue
+            } else {
+                Set-Item -Path ("Env:" + $name) -Value $savedApiEnv[$name]
+            }
+        }
     }
 
     $details = Sanitize-Secret (($output | Out-String).Trim()) $ApiKey
@@ -1244,12 +1257,11 @@ write_if_changed() {
 }
 
 build_config_body() {
-  local escaped_model escaped_provider escaped_url escaped_effort escaped_env_key
+  local escaped_model escaped_provider escaped_url escaped_effort
   escaped_model="$(toml_escape "$model")"
   escaped_provider="$(toml_escape "$provider")"
   escaped_url="$(toml_escape "$base_url")"
   escaped_effort="$(toml_escape "$reasoning_effort")"
-  escaped_env_key="$(toml_escape "$env_key")"
 
   printf 'model = "%s"\n' "$escaped_model"
   printf 'model_provider = "%s"\n' "$escaped_provider"
@@ -1291,7 +1303,7 @@ build_config_body() {
   printf '\n[model_providers.%s]\n' "$escaped_provider"
   printf 'name = "%s"\n' "$escaped_provider"
   printf 'base_url = "%s"\n' "$escaped_url"
-  printf 'env_key = "%s"\n' "$escaped_env_key"
+  printf 'requires_openai_auth = true\n'
 }
 
 build_shell_env_body() {

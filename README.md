@@ -109,8 +109,8 @@ curl -fsSL -H 'Cache-Control: no-cache' https://raw.githubusercontent.com/OlegGo
 2. Если ключа ещё нет, попросит вставить Vibemode API key маскированным вводом: одна `*` на каждый символ.
 3. Если `auth.json` уже есть, можно оставить ключ, заменить его или удалить через `vibemode key remove`.
 4. `config.toml` обновится на Vibemode provider.
-5. Для Codex Desktop запишется приватный `~/.codex/.env`, потому что Desktop читает provider key из окружения.
-6. Для Codex CLI `auth.json` приводится к формату `codex login --with-api-key`: `"auth_mode": "apikey"` и `OPENAI_API_KEY`. `CODEX_HOME`, `CODEX_KEY`, `OPENAI_API_KEY` и `CODEX_API_KEY` дополнительно пишутся в `.env`, `vibemode.env` или пользовательские переменные окружения.
+5. Для Codex provider включится официальный API-login auth через `auth.json`.
+6. Для Codex CLI `auth.json` приводится к формату `codex login --with-api-key`: `"auth_mode": "apikey"` и `OPENAI_API_KEY`. `CODEX_HOME`, `CODEX_KEY`, `OPENAI_API_KEY` и `CODEX_API_KEY` дополнительно пишутся в `.env`, `vibemode.env` или пользовательские переменные окружения для Desktop, shell-сессий, helper-скриптов и совместимости.
 7. Ключ проверится через `POST https://api.vibemod.pro/v1/responses`, если проверка не отключена.
 8. По команде `vibemode use openai` конфиг возвращается к стандартному OpenAI provider.
 9. По команде `vibemode remove` удаляются Vibemode key material и shell startup block, а Codex config переключается на OpenAI.
@@ -134,7 +134,7 @@ cli_auth_credentials_store = "file"
 [model_providers.vibemode]
 name = "vibemode"
 base_url = "https://api.vibemod.pro/v1"
-env_key = "CODEX_KEY"
+requires_openai_auth = true
 ```
 
 `auth.json`:
@@ -161,7 +161,7 @@ CODEX_API_KEY="..."
 - Windows: `%USERPROFILE%\.codex\config.toml`, `%USERPROFILE%\.codex\auth.json` и `%USERPROFILE%\.codex\.env`
 - WSL при запуске Windows-скрипта: `~/.codex/config.toml`, `~/.codex/auth.json`, `~/.codex/.env` и `~/.codex/vibemode.env` внутри default WSL-дистрибутива
 
-В Linux/macOS/Termux и WSL Codex CLI читает provider key из переменных окружения, поэтому скрипт пишет `CODEX_HOME`, `CODEX_KEY`, `OPENAI_API_KEY` и `CODEX_API_KEY` в `~/.codex/vibemode.env` и добавляет его подключение в `~/.profile`; если используются bash или zsh, также обновляются `.bashrc` или `.zshrc`. После запуска через `curl ... | bash` текущая вкладка Termux не может автоматически получить переменную из дочернего `bash`; выполни команду, которую скрипт покажет в конце, или открой новую вкладку Termux.
+В Linux/macOS/Termux и WSL Codex CLI берёт ключ для Vibemode provider из API-login кеша `auth.json`. Скрипт всё равно пишет `CODEX_HOME`, `CODEX_KEY`, `OPENAI_API_KEY` и `CODEX_API_KEY` в `~/.codex/vibemode.env` и добавляет его подключение в `~/.profile`; если используются bash или zsh, также обновляются `.bashrc` или `.zshrc`. Это нужно для shell-сессий, helper-скриптов и совместимости. После запуска через `curl ... | bash` текущая вкладка Termux не может автоматически получить переменную из дочернего `bash`; выполни команду, которую скрипт покажет в конце, или открой новую вкладку Termux.
 
 Для WSL используется текущий default user выбранного дистрибутива. Если default user в WSL — `oleg`, путь будет вроде `/home/oleg/.codex`; если default user — `root`, путь будет `/root/.codex`. Скрипт выводит WSL user, `HOME` и итоговый config dir в лог.
 
@@ -187,7 +187,7 @@ $env:VIBEMODE_KEY_FROM_CLIPBOARD='1'; $u='https://raw.githubusercontent.com/Oleg
 
 ## Важно про окно авторизации Codex Desktop
 
-Скрипт не авторизует подписку ChatGPT внутри интерфейса Codex Desktop. Он настраивает API-режим: записывает Vibemode provider в `config.toml`, официальный кеш API-логина в `auth.json` и provider key в окружение.
+Скрипт не авторизует подписку ChatGPT внутри интерфейса Codex Desktop. Он настраивает API-режим: записывает Vibemode provider в `config.toml`, официальный кеш API-логина в `auth.json` и API key в окружение для вспомогательных сценариев.
 
 Если после установки Codex Desktop показывает экран выбора авторизации, выбирай вариант с API, а не подписку. После этого перезапусти Codex Desktop. Если приложение снова просит ключ, проверь, что файлы лежат именно в `%USERPROFILE%\.codex` на Windows или в `~/.codex` внутри выбранного WSL/default user.
 

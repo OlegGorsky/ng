@@ -68,7 +68,7 @@ cli_auth_credentials_store = "file"
 [model_providers.vibemode]
 name = "vibemode"
 base_url = "https://api.vibemod.pro/v1"
-env_key = "CODEX_KEY"
+requires_openai_auth = true
 ```
 
 В `auth.json` записывается или сохраняется:
@@ -80,7 +80,7 @@ env_key = "CODEX_KEY"
 }
 ```
 
-В `.env` для Codex Desktop и пользовательское окружение для CLI записывается provider key:
+В `.env` для Codex Desktop и пользовательское окружение для CLI записывается API key для helper-скриптов, shell-сессий и совместимости:
 
 ```dotenv
 CODEX_KEY="..."
@@ -104,7 +104,7 @@ $env:VIBEMODE_SKIP_API_CHECK='1'; $u='https://raw.githubusercontent.com/OlegGors
 
 ## Окно авторизации Codex Desktop
 
-Скрипт не авторизует подписку ChatGPT внутри UI Codex Desktop. Он включает API-режим через локальные файлы `config.toml`, официальный кеш API-логина `auth.json` и `.env`.
+Скрипт не авторизует подписку ChatGPT внутри UI Codex Desktop. Он включает API-режим через локальные файлы `config.toml`, официальный кеш API-логина `auth.json` и `.env` для вспомогательных сценариев.
 
 Если Codex Desktop после установки показывает выбор авторизации, выбирай вариант с API, а не подписку. Если приложение снова просит ключ, проверь, что `config.toml`, `auth.json` и `.env` лежат в `%USERPROFILE%\.codex` на Windows или в `~/.codex` внутри выбранного WSL/default user.
 

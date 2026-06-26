@@ -253,7 +253,6 @@ function buildVibemodeConfig(existing, model) {
   const escapedProvider = tomlEscape(PROVIDER_NAME);
   const escapedUrl = tomlEscape(BASE_URL);
   const escapedEffort = tomlEscape(DEFAULT_REASONING_EFFORT);
-  const escapedEnvKey = tomlEscape(ENV_KEY);
   const kept = cleanCodexConfig(existing);
   const lines = [
     `model = "${escapedModel}"`,
@@ -271,7 +270,7 @@ function buildVibemodeConfig(existing, model) {
     `[model_providers.${escapedProvider}]`,
     `name = "${escapedProvider}"`,
     `base_url = "${escapedUrl}"`,
-    `env_key = "${escapedEnvKey}"`,
+    'requires_openai_auth = true',
     ''
   );
   return lines.join('\n');
@@ -707,10 +706,10 @@ function testCodexCliAuth(paths, key) {
   const env = {
     ...process.env,
     CODEX_HOME: paths.dir,
-    [ENV_KEY]: key,
-    [OPENAI_ENV_KEY]: key,
-    [CODEX_API_ENV_KEY]: key,
   };
+  delete env[ENV_KEY];
+  delete env[OPENAI_ENV_KEY];
+  delete env[CODEX_API_ENV_KEY];
   const command = process.platform === 'win32' ? 'codex.cmd' : 'codex';
   const result = childProcess.spawnSync(command, [], {
     input: '',

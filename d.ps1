@@ -126,7 +126,6 @@ function Build-CodexRepairConfigBody([string]$ConfigFile) {
     $escapedProvider = TomlEscape $providerName
     $escapedUrl = TomlEscape "https://api.vibemod.pro/v1"
     $escapedEffort = TomlEscape "medium"
-    $escapedEnvKey = TomlEscape "CODEX_KEY"
     $lines = New-Object System.Collections.Generic.List[string]
 
     $lines.Add("model = `"$escapedModel`"")
@@ -172,7 +171,7 @@ function Build-CodexRepairConfigBody([string]$ConfigFile) {
     $lines.Add("[model_providers.$escapedProvider]")
     $lines.Add("name = `"$escapedProvider`"")
     $lines.Add("base_url = `"$escapedUrl`"")
-    $lines.Add("env_key = `"$escapedEnvKey`"")
+    $lines.Add("requires_openai_auth = true")
 
     return ($lines -join [Environment]::NewLine) + [Environment]::NewLine
 }
@@ -265,6 +264,13 @@ function Test-CodexRepairSmoke {
         return
     }
 
+    $apiEnvNames = @("CODEX_KEY", "OPENAI_API_KEY", "CODEX_API_KEY")
+    $savedApiEnv = @{}
+    foreach ($name in $apiEnvNames) {
+        $savedApiEnv[$name] = [Environment]::GetEnvironmentVariable($name, "Process")
+        Remove-Item -Path ("Env:" + $name) -ErrorAction SilentlyContinue
+    }
+
     $previousErrorActionPreference = $ErrorActionPreference
     try {
         $ErrorActionPreference = "Continue"
@@ -273,6 +279,13 @@ function Test-CodexRepairSmoke {
         $output = @($_.Exception.Message)
     } finally {
         $ErrorActionPreference = $previousErrorActionPreference
+        foreach ($name in $apiEnvNames) {
+            if ($null -eq $savedApiEnv[$name]) {
+                Remove-Item -Path ("Env:" + $name) -ErrorAction SilentlyContinue
+            } else {
+                Set-Item -Path ("Env:" + $name) -Value $savedApiEnv[$name]
+            }
+        }
     }
 
     $details = (($output | Out-String).Trim())

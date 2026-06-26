@@ -352,7 +352,8 @@ function removeAuthKey(paths) {
 }
 
 function writeShellEnv(paths, key) {
-  const body = AUTH_ENV_KEYS.map(name => `export ${name}=${shellEscape(key)}`).join('\n');
+  const entries = [['CODEX_HOME', paths.dir], ...AUTH_ENV_KEYS.map(name => [name, key])];
+  const body = entries.map(([name, value]) => `export ${name}=${shellEscape(value)}`).join('\n');
   writeIfChanged(paths.envFile, `${body}\n`, 0o600);
 }
 

@@ -450,6 +450,7 @@ FAKE_CODEX
   assert_contains "$tmp/home/.codex/vibemode.env" "export CODEX_KEY='test-api-key'" 'npm CLI writes shell CODEX_KEY export'
   assert_contains "$tmp/home/.codex/vibemode.env" "export OPENAI_API_KEY='test-api-key'" 'npm CLI writes shell OPENAI_API_KEY export'
   assert_contains "$tmp/home/.codex/vibemode.env" "export CODEX_API_KEY='test-api-key'" 'npm CLI writes shell CODEX_API_KEY export'
+  assert_contains "$tmp/home/.codex/vibemode.env" "export CODEX_HOME='$tmp/home/.codex'" 'npm CLI writes shell CODEX_HOME export'
   assert_contains "$tmp/home/.profile" '.codex/vibemode.env' 'npm CLI wires shell startup'
   assert_not_contains_text "$output" 'test-api-key' 'npm CLI setup does not print API key'
 
@@ -588,6 +589,7 @@ FAKE_CODEX
   assert_contains "$tmp/home/.codex/vibemode.env" "export CODEX_KEY='test-api-key'" 'writes shell CODEX_KEY export'
   assert_contains "$tmp/home/.codex/vibemode.env" "export OPENAI_API_KEY='test-api-key'" 'writes shell OPENAI_API_KEY export'
   assert_contains "$tmp/home/.codex/vibemode.env" "export CODEX_API_KEY='test-api-key'" 'writes shell CODEX_API_KEY export'
+  assert_contains "$tmp/home/.codex/vibemode.env" "export CODEX_HOME='$tmp/home/.codex'" 'writes shell CODEX_HOME export'
   assert_contains "$tmp/home/.profile" '.codex/vibemode.env' 'profile sources shell env file'
   assert_not_contains_text "$output" 'test-api-key' 'does not print API key'
   assert_not_contains_text "$output" 'Authorization: Bearer' 'does not print bearer header'

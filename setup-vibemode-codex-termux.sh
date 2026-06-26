@@ -431,7 +431,7 @@ write_shell_env() {
   local tmp escaped_key
   tmp="$(mktemp "$CODEX_DIR/vibemode.env.tmp.XXXXXX")"
   escaped_key="$(shell_escape "$API_KEY")"
-  printf 'export %s=%s\nexport %s=%s\nexport %s=%s\n' "$ENV_KEY" "$escaped_key" "$OPENAI_ENV_KEY" "$escaped_key" "$CODEX_API_ENV_KEY" "$escaped_key" > "$tmp"
+  printf 'export CODEX_HOME=%s\nexport %s=%s\nexport %s=%s\nexport %s=%s\n' "$(shell_escape "$CODEX_DIR")" "$ENV_KEY" "$escaped_key" "$OPENAI_ENV_KEY" "$escaped_key" "$CODEX_API_ENV_KEY" "$escaped_key" > "$tmp"
   write_if_changed "$SHELL_ENV_FILE" "$tmp" 600
 }
 

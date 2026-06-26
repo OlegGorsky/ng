@@ -122,7 +122,8 @@ curl -fsSL https://raw.githubusercontent.com/OlegGorsky/ng/main/i | bash
 9. По команде `vibemode remove` удаляются Vibemode key material и shell startup block, а Codex config переключается на OpenAI.
 10. Legacy Desktop-скрипт дополнительно ставит helper для генерации картинок, Codex CLI через npm и на Windows мягко пробует поставить Python/Node.js через `winget` или официальные установщики, если их нет.
 11. Windows-скрипт проверяет WSL и, если default distro готов, записывает туда тот же `config.toml`, `auth.json`, `.env` и image helper.
-12. После Desktop-настройки перезапусти Codex Desktop.
+12. Windows-скрипт добавляет маленький PowerShell profile-блок, чтобы новые вкладки перечитывали сохранённые `CODEX_*` переменные даже если Windows Terminal ещё держит старое окружение.
+13. После Desktop-настройки перезапусти Codex Desktop.
 
 Короткие `curl ... | bash` команды тоже умеют спрашивать ключ: bash-скрипты читают ввод с терминала, а не из pipe.
 

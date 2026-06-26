@@ -108,8 +108,22 @@ assert_ascii_file() {
   fi
 }
 
+make_fake_codex() {
+  local bin_dir="$1"
+  cat > "$bin_dir/codex" <<'FAKE_CODEX'
+#!/usr/bin/env bash
+if [[ "${1:-}" == '--version' ]]; then
+  printf 'codex-cli 0.140.0\n'
+  exit 0
+fi
+printf 'fake codex %s\n' "$*"
+FAKE_CODEX
+  chmod +x "$bin_dir/codex"
+}
+
 make_fake_curl() {
   local bin_dir="$1"
+  make_fake_codex "$bin_dir"
   cat > "$bin_dir/curl" <<'FAKE_CURL'
 #!/usr/bin/env bash
 output_path=''
@@ -222,6 +236,7 @@ FAKE_BOOTSTRAP_CURL
 
 make_fake_desktop_curl() {
   local bin_dir="$1"
+  make_fake_codex "$bin_dir"
   cat > "$bin_dir/curl" <<'FAKE_DESKTOP_CURL'
 #!/usr/bin/env bash
 output_path=''
@@ -289,6 +304,7 @@ FAKE_DESKTOP_CURL
 
 make_fake_api_error_curl() {
   local bin_dir="$1"
+  make_fake_codex "$bin_dir"
   cat > "$bin_dir/curl" <<'FAKE_API_ERROR_CURL'
 #!/usr/bin/env bash
 output_path=''
@@ -977,6 +993,42 @@ test_desktop_setup_can_skip_api_check_from_env() {
   rm -rf "$tmp"
 }
 
+test_desktop_setup_detects_broken_codex_auth_cache() {
+  local tmp bin output status
+  tmp="$(mktemp -d)"
+  bin="$tmp/bin"
+  mkdir -p "$bin"
+  make_fake_desktop_curl "$bin"
+  cat > "$bin/codex" <<'FAKE_CODEX'
+#!/usr/bin/env bash
+printf 'API key auth is missing a key.\n' >&2
+exit 1
+FAKE_CODEX
+  chmod +x "$bin/codex"
+
+  set +e
+  output="$(CODEX_KEY='test-api-key' HOME="$tmp/home" CODEX_HOME="$tmp/home/.codex" PATH="$bin:$PATH" \
+    bash "$DESKTOP_SCRIPT" --non-interactive --skip-api-check --no-image-helper 2>&1)"
+  status="$?"
+  set -e
+
+  if [[ "$status" != '0' ]]; then
+    pass 'desktop setup fails on broken Codex API auth cache'
+  else
+    fail 'desktop setup fails on broken Codex API auth cache'
+  fi
+  assert_file "$tmp/home/.codex/auth.json" 'desktop setup writes auth before Codex auth smoke failure'
+  if [[ "$output" == *'сломанный API-key auth'* && "$output" == *'auth.json='* ]]; then
+    pass 'desktop setup explains broken Codex API auth cache'
+  else
+    printf '%s\n' "$output" >&2
+    fail 'desktop setup explains broken Codex API auth cache'
+  fi
+  assert_not_contains_text "$output" 'test-api-key' 'desktop Codex auth smoke failure does not print API key'
+
+  rm -rf "$tmp"
+}
+
 test_desktop_bootstrap_downloads_and_runs_setup() {
   local tmp bin output
   tmp="$(mktemp -d)"
@@ -1053,6 +1105,11 @@ test_desktop_powershell_static_checks() {
   assert_contains "$DESKTOP_PS" '[Environment]::SetEnvironmentVariable($OpenAiEnvKey, $ApiKey, "User")' 'PowerShell setup persists OPENAI_API_KEY for new CLI sessions'
   assert_contains "$DESKTOP_PS" '[Environment]::SetEnvironmentVariable($CodexApiEnvKey, $ApiKey, "User")' 'PowerShell setup persists CODEX_API_KEY for new CLI sessions'
   assert_contains "$DESKTOP_PS" 'Set-CodexKeyEnvironment $apiKey' 'PowerShell setup applies CLI env key'
+  assert_contains "$DESKTOP_PS" 'function Install-PowerShellEnvProfile' 'PowerShell setup can refresh Codex env from PowerShell profiles'
+  assert_contains "$DESKTOP_PS" 'Microsoft.PowerShell_profile.ps1' 'PowerShell setup targets Windows PowerShell and PowerShell profiles'
+  assert_contains "$DESKTOP_PS" '# >>> vibemode codex >>>' 'PowerShell setup writes an idempotent profile block'
+  assert_contains "$DESKTOP_PS" '[Environment]::GetEnvironmentVariable($name, "User")' 'PowerShell profile block reloads User env'
+  assert_contains "$DESKTOP_PS" 'Install-PowerShellEnvProfile' 'PowerShell setup installs Codex env profile refresh'
   assert_contains "$DESKTOP_PS" 'Assert-AuthReady' 'PowerShell setup verifies Codex auth after final write'
   assert_contains "$DESKTOP_PS" 'Codex auth.json не содержит OPENAI_API_KEY' 'PowerShell setup explains broken Codex auth format'
   assert_contains "$DESKTOP_PS" 'function Get-CodexCommand' 'PowerShell setup reuses Codex CLI command lookup'
@@ -1651,6 +1708,42 @@ test_termux_api_check_reports_safe_details() {
   rm -rf "$tmp"
 }
 
+test_termux_setup_detects_broken_codex_auth_cache() {
+  local tmp bin output status
+  tmp="$(mktemp -d)"
+  bin="$tmp/bin"
+  mkdir -p "$bin"
+  make_fake_curl "$bin"
+  cat > "$bin/codex" <<'FAKE_CODEX'
+#!/usr/bin/env bash
+printf 'API key auth is missing a key.\n' >&2
+exit 1
+FAKE_CODEX
+  chmod +x "$bin/codex"
+
+  set +e
+  output="$(CODEX_KEY='test-api-key' HOME="$tmp/home" CODEX_HOME="$tmp/home/.codex" PATH="$bin:$PATH" \
+    bash "$SCRIPT" --non-interactive 2>&1)"
+  status="$?"
+  set -e
+
+  if [[ "$status" != '0' ]]; then
+    pass 'Termux setup fails on broken Codex API auth cache'
+  else
+    fail 'Termux setup fails on broken Codex API auth cache'
+  fi
+  assert_file "$tmp/home/.codex/auth.json" 'Termux setup writes auth before Codex auth smoke failure'
+  if [[ "$output" == *'сломанный API-key auth'* && "$output" == *'auth.json='* ]]; then
+    pass 'Termux setup explains broken Codex API auth cache'
+  else
+    printf '%s\n' "$output" >&2
+    fail 'Termux setup explains broken Codex API auth cache'
+  fi
+  assert_not_contains_text "$output" 'test-api-key' 'Termux Codex auth smoke failure does not print API key'
+
+  rm -rf "$tmp"
+}
+
 test_bootstrap_downloads_and_runs_setup() {
   local tmp bin output
   tmp="$(mktemp -d)"
@@ -1688,6 +1781,7 @@ test_desktop_setup_can_replace_env_key_interactively
 test_desktop_setup_masks_direct_key_paste_over_existing_auth
 test_desktop_api_check_reports_safe_details
 test_desktop_setup_can_skip_api_check_from_env
+test_desktop_setup_detects_broken_codex_auth_cache
 test_desktop_bootstrap_downloads_and_runs_setup
 test_desktop_powershell_static_checks
 test_desktop_powershell_wsl_ready_failure_is_nonfatal
@@ -1703,6 +1797,7 @@ test_termux_setup_can_replace_existing_auth_key
 test_termux_setup_can_replace_existing_auth_key_from_pipe
 test_termux_setup_masks_direct_key_paste_over_existing_auth
 test_termux_api_check_reports_safe_details
+test_termux_setup_detects_broken_codex_auth_cache
 test_bootstrap_downloads_and_runs_setup
 test_image_helper_static_checks
 test_image_helper_reads_selected_codex_provider

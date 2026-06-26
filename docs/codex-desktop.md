@@ -171,7 +171,7 @@ Windows:
 powershell -ExecutionPolicy Bypass -File .\setup-vibemode-codex-desktop.ps1
 ```
 
-Windows setup также пробует поставить Codex CLI: `@openai/codex` через npm, а при отсутствии npm — Node.js LTS через `winget` или официальный zip с `nodejs.org`. После установки CLI Windows setup выполняет `codex login --with-api-key`, нормализует `auth.json` к официальному формату с `OPENAI_API_KEY` и сохраняет `CODEX_KEY`, `OPENAI_API_KEY`, `CODEX_API_KEY` в окружение.
+Windows setup также пробует поставить Codex CLI: `@openai/codex` через npm, а при отсутствии npm — Node.js LTS через `winget` или официальный zip с `nodejs.org`. После установки CLI Windows setup выполняет `codex login --with-api-key`, нормализует `auth.json` к официальному формату с `OPENAI_API_KEY`, сохраняет `CODEX_KEY`, `OPENAI_API_KEY`, `CODEX_API_KEY` в окружение и добавляет PowerShell profile-refresh для новых вкладок.
 
 Полезные опции:
 

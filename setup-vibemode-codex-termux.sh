@@ -499,6 +499,23 @@ trim_error_details() {
   printf '%s' "$text"
 }
 
+test_codex_cli_auth() {
+  command -v codex >/dev/null 2>&1 || return 0
+
+  local output status
+  set +e
+  output="$(CODEX_HOME="$CODEX_DIR" CODEX_KEY="$API_KEY" OPENAI_API_KEY="$API_KEY" CODEX_API_KEY="$API_KEY" codex 2>&1 </dev/null)"
+  status="$?"
+  set -e
+
+  output="$(sanitize_api_error "$output")"
+  if [[ "$output" == *'API key auth is missing a key'* ]]; then
+    die "Codex CLI всё ещё видит сломанный API-key auth. CODEX_HOME=$CODEX_DIR; auth.json=$AUTH_FILE"
+  fi
+  log 'Codex CLI auth smoke-check пройден'
+  return "$status"
+}
+
 check_responses_api() {
   local response status curl_status response_file error_file error_text request_body
   response_file="$(mktemp)"
@@ -550,6 +567,7 @@ main() {
   write_config
   write_auth
   configure_shell_env
+  test_codex_cli_auth || true
 
   log 'Проверяю Vibemode API через /v1/responses...'
   check_responses_api

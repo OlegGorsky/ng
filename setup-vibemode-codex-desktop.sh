@@ -450,6 +450,23 @@ trim_error_details() {
   printf '%s' "$text"
 }
 
+test_codex_cli_auth() {
+  command -v codex >/dev/null 2>&1 || return 0
+
+  local output status
+  set +e
+  output="$(CODEX_HOME="$CODEX_DIR" CODEX_KEY="$API_KEY" OPENAI_API_KEY="$API_KEY" CODEX_API_KEY="$API_KEY" codex 2>&1 </dev/null)"
+  status="$?"
+  set -e
+
+  output="$(sanitize_api_error "$output")"
+  if [[ "$output" == *'API key auth is missing a key'* ]]; then
+    die "Codex CLI всё ещё видит сломанный API-key auth. CODEX_HOME=$CODEX_DIR; auth.json=$AUTH_FILE"
+  fi
+  log 'Codex CLI auth smoke-check пройден'
+  return "$status"
+}
+
 api_check_failure_hint() {
   printf '%s' ' Подсказка: HTTP 401 обычно означает, что API-ключ не принят. Для короткой команды положи новый ключ в CODEX_KEY и запусти с VIBEMODE_REPLACE_KEY=1; чтобы только записать файлы без проверки, используй VIBEMODE_SKIP_API_CHECK=1.'
 }
@@ -516,6 +533,7 @@ main() {
   write_auth
   write_desktop_env
   install_image_helper
+  test_codex_cli_auth || true
 
   if is_truthy "$SKIP_API_CHECK"; then
     log 'Проверка /v1/responses пропущена'

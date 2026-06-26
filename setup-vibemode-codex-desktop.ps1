@@ -465,6 +465,50 @@ function Set-CodexKeyEnvironment([string]$ApiKey) {
     [Environment]::SetEnvironmentVariable($CodexApiEnvKey, $ApiKey, "User")
 }
 
+function Get-PowerShellProfilePaths {
+    $paths = New-Object System.Collections.Generic.List[string]
+    if ($PROFILE) {
+        $paths.Add([string]$PROFILE)
+        try {
+            if ($PROFILE.CurrentUserAllHosts) {
+                $paths.Add([string]$PROFILE.CurrentUserAllHosts)
+            }
+        } catch {
+        }
+    }
+
+    $documents = [Environment]::GetFolderPath("MyDocuments")
+    if ($documents) {
+        $paths.Add((Join-Path (Join-Path $documents "WindowsPowerShell") "Microsoft.PowerShell_profile.ps1"))
+        $paths.Add((Join-Path (Join-Path $documents "PowerShell") "Microsoft.PowerShell_profile.ps1"))
+    }
+
+    return ($paths | Where-Object { $_ } | Select-Object -Unique)
+}
+
+function Install-PowerShellEnvProfile {
+    $begin = "# >>> vibemode codex >>>"
+    $end = "# <<< vibemode codex <<<"
+    $block = @(
+        $begin,
+        'foreach ($name in @("CODEX_HOME", "CODEX_KEY", "OPENAI_API_KEY", "CODEX_API_KEY")) {',
+        '    $value = [Environment]::GetEnvironmentVariable($name, "User")',
+        '    if ($value) { Set-Item -Path ("Env:" + $name) -Value $value }',
+        '}',
+        $end,
+        ''
+    ) -join [Environment]::NewLine
+
+    foreach ($profilePath in Get-PowerShellProfilePaths) {
+        $profileDir = Split-Path -Parent $profilePath
+        New-Item -ItemType Directory -Force -Path $profileDir | Out-Null
+        $existing = if (Test-Path -LiteralPath $profilePath) { Get-Content -LiteralPath $profilePath -Raw } else { "" }
+        $pattern = [regex]::Escape($begin) + '(?s).*?' + [regex]::Escape($end) + '(\r?\n)?'
+        $clean = [regex]::Replace($existing, $pattern, "")
+        Write-IfChanged $profilePath ($clean.TrimEnd() + [Environment]::NewLine + $block)
+    }
+}
+
 function Assert-AuthReady {
     try {
         $payload = Get-Content -LiteralPath $AuthFile -Raw | ConvertFrom-Json
@@ -1273,6 +1317,7 @@ Write-Config
 Write-Auth $apiKey
 Write-DesktopEnv $apiKey
 Set-CodexKeyEnvironment $apiKey
+Install-PowerShellEnvProfile
 Install-ImageHelper
 Install-WslConfig $apiKey
 Install-CodexCli

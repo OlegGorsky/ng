@@ -190,9 +190,9 @@ try {
     if ($exitCode -ne 0) {
         throw "Setup failed with exit code $exitCode."
     }
+} finally {
     Refresh-CodexEnvironment
     Refresh-PathFromEnvironment
     Add-KnownCommandDirsToPath
-} finally {
     Remove-Item -Force $tmp -ErrorAction SilentlyContinue
 }

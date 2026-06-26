@@ -1242,6 +1242,18 @@ test_desktop_powershell_static_checks() {
   assert_contains "$DESKTOP_BOOTSTRAP_PS" 'function Refresh-CodexEnvironment' 'PowerShell bootstrap can refresh current shell Codex env after setup'
   assert_contains "$DESKTOP_BOOTSTRAP_PS" '"CODEX_HOME", "CODEX_KEY", "OPENAI_API_KEY", "CODEX_API_KEY"' 'PowerShell bootstrap refreshes Codex auth env names'
   assert_contains "$DESKTOP_BOOTSTRAP_PS" 'Refresh-CodexEnvironment' 'PowerShell bootstrap invokes Codex env refresh after setup'
+  if awk '
+    /^\} finally \{/ { in_finally = 1 }
+    in_finally && /Refresh-CodexEnvironment/ { env = 1 }
+    in_finally && /Refresh-PathFromEnvironment/ { path = 1 }
+    in_finally && /Add-KnownCommandDirsToPath/ { dirs = 1 }
+    in_finally && /Remove-Item -Force \$tmp/ { remove = 1 }
+    END { exit(env && path && dirs && remove ? 0 : 1) }
+  ' "$DESKTOP_BOOTSTRAP_PS"; then
+    pass 'PowerShell bootstrap refreshes current shell even if setup fails'
+  else
+    fail 'PowerShell bootstrap refreshes current shell even if setup fails'
+  fi
   assert_contains "$DESKTOP_BOOTSTRAP_PS" 'Add-KnownCommandDirsToPath' 'PowerShell bootstrap adds command dirs to current shell PATH after setup'
   assert_contains "$DESKTOP_BOOTSTRAP_PS" 'Join-Path $env:APPDATA "npm"' 'PowerShell bootstrap adds npm global bin to current shell PATH'
   assert_contains "$DESKTOP_BOOTSTRAP_PS" 'Join-Path (Join-Path $env:LOCALAPPDATA "Programs") "nodejs"' 'PowerShell bootstrap adds user Node.js zip dir to current shell PATH'

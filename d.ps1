@@ -39,6 +39,82 @@ function Refresh-CodexEnvironment {
     }
 }
 
+function JsonEscape([string]$Value) {
+    if ($null -eq $Value) {
+        return ""
+    }
+    return $Value.Replace('\', '\\').Replace('"', '\"').Replace("`r", "").Replace("`n", "")
+}
+
+function Get-CodexRepairDirs {
+    $dirs = New-Object System.Collections.Generic.List[string]
+    $seen = @{}
+    foreach ($dir in @($env:CODEX_HOME, [Environment]::GetEnvironmentVariable("CODEX_HOME", "User"), (Join-Path $HOME ".codex"))) {
+        if (-not $dir) {
+            continue
+        }
+        try {
+            $key = ([System.IO.Path]::GetFullPath($dir)).TrimEnd('\').ToUpperInvariant()
+        } catch {
+            $key = $dir.TrimEnd('\').ToUpperInvariant()
+        }
+        if ($seen.ContainsKey($key)) {
+            continue
+        }
+        $seen[$key] = $true
+        $dirs.Add($dir)
+    }
+    return $dirs
+}
+
+function Repair-CodexApiKeyAuth {
+    foreach ($dir in Get-CodexRepairDirs) {
+        $authFile = Join-Path $dir "auth.json"
+        $apiKey = $null
+
+        if (Test-Path -LiteralPath $authFile) {
+            try {
+                $payload = Get-Content -LiteralPath $authFile -Raw | ConvertFrom-Json
+                $openAiProperty = $payload.PSObject.Properties["OPENAI_API_KEY"]
+                if ($openAiProperty -and $openAiProperty.Value -is [string] -and $openAiProperty.Value.Trim()) {
+                    continue
+                }
+
+                $staleProperty = $payload.PSObject.Properties["CODEX_KEY"]
+                if ($staleProperty -and $staleProperty.Value -is [string] -and $staleProperty.Value.Trim()) {
+                    $apiKey = $staleProperty.Value.Trim()
+                }
+                if (-not $apiKey) {
+                    $codexApiProperty = $payload.PSObject.Properties["CODEX_API_KEY"]
+                    if ($codexApiProperty -and $codexApiProperty.Value -is [string] -and $codexApiProperty.Value.Trim()) {
+                        $apiKey = $codexApiProperty.Value.Trim()
+                    }
+                }
+            } catch {
+            }
+        }
+
+        if (-not $apiKey) {
+            foreach ($name in @("OPENAI_API_KEY", "CODEX_KEY", "CODEX_API_KEY")) {
+                $value = [Environment]::GetEnvironmentVariable($name)
+                if ($value -and $value.Trim()) {
+                    $apiKey = $value.Trim()
+                    break
+                }
+            }
+        }
+        if (-not $apiKey) {
+            continue
+        }
+
+        New-Item -ItemType Directory -Force -Path $dir | Out-Null
+        $escapedKey = JsonEscape $apiKey
+        $body = "{`n  `"auth_mode`": `"apikey`",`n  `"OPENAI_API_KEY`": `"$escapedKey`"`n}`n"
+        $utf8 = New-Object System.Text.UTF8Encoding -ArgumentList $false
+        [System.IO.File]::WriteAllText($authFile, $body, $utf8)
+    }
+}
+
 function Add-KnownCommandDirsToPath {
     $dirs = @()
     if ($env:APPDATA) {
@@ -192,6 +268,7 @@ try {
     }
 } finally {
     Refresh-CodexEnvironment
+    Repair-CodexApiKeyAuth
     Refresh-PathFromEnvironment
     Add-KnownCommandDirsToPath
     Remove-Item -Force $tmp -ErrorAction SilentlyContinue

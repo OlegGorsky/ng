@@ -1242,17 +1242,21 @@ test_desktop_powershell_static_checks() {
   assert_contains "$DESKTOP_BOOTSTRAP_PS" 'function Refresh-CodexEnvironment' 'PowerShell bootstrap can refresh current shell Codex env after setup'
   assert_contains "$DESKTOP_BOOTSTRAP_PS" '"CODEX_HOME", "CODEX_KEY", "OPENAI_API_KEY", "CODEX_API_KEY"' 'PowerShell bootstrap refreshes Codex auth env names'
   assert_contains "$DESKTOP_BOOTSTRAP_PS" 'Refresh-CodexEnvironment' 'PowerShell bootstrap invokes Codex env refresh after setup'
+  assert_contains "$DESKTOP_BOOTSTRAP_PS" 'function Repair-CodexApiKeyAuth' 'PowerShell bootstrap can repair stale Codex API-key auth'
+  assert_contains "$DESKTOP_BOOTSTRAP_PS" '$payload.PSObject.Properties["CODEX_KEY"]' 'PowerShell bootstrap can read stale CODEX_KEY auth'
+  assert_contains "$DESKTOP_BOOTSTRAP_PS" 'Repair-CodexApiKeyAuth' 'PowerShell bootstrap invokes stale Codex auth repair'
   if awk '
     /^\} finally \{/ { in_finally = 1 }
     in_finally && /Refresh-CodexEnvironment/ { env = 1 }
+    in_finally && /Repair-CodexApiKeyAuth/ { repair = 1 }
     in_finally && /Refresh-PathFromEnvironment/ { path = 1 }
     in_finally && /Add-KnownCommandDirsToPath/ { dirs = 1 }
     in_finally && /Remove-Item -Force \$tmp/ { remove = 1 }
-    END { exit(env && path && dirs && remove ? 0 : 1) }
+    END { exit(env && repair && path && dirs && remove ? 0 : 1) }
   ' "$DESKTOP_BOOTSTRAP_PS"; then
-    pass 'PowerShell bootstrap refreshes current shell even if setup fails'
+    pass 'PowerShell bootstrap refreshes current shell and auth even if setup fails'
   else
-    fail 'PowerShell bootstrap refreshes current shell even if setup fails'
+    fail 'PowerShell bootstrap refreshes current shell and auth even if setup fails'
   fi
   assert_contains "$DESKTOP_BOOTSTRAP_PS" 'Add-KnownCommandDirsToPath' 'PowerShell bootstrap adds command dirs to current shell PATH after setup'
   assert_contains "$DESKTOP_BOOTSTRAP_PS" 'Join-Path $env:APPDATA "npm"' 'PowerShell bootstrap adds npm global bin to current shell PATH'

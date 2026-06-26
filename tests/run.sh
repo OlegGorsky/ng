@@ -392,6 +392,13 @@ test_npm_cli_package_metadata() {
   assert_not_contains_file "$PACKAGE_JSON" '"scripts",' 'package does not include whole scripts directory'
   assert_contains "$CLI" "input: [{ role: 'user', content: 'ping' }]" 'npm CLI checks Responses API with list input'
   assert_contains "$CLI" 'stream: true' 'npm CLI checks Responses API with streaming enabled'
+  assert_contains "$CLI" 'function persistWindowsUserEnvironment' 'npm CLI can persist Windows User env'
+  assert_contains "$CLI" 'powershell.exe' 'npm CLI uses PowerShell for Windows User env'
+  assert_contains "$CLI" 'SetEnvironmentVariable($name, [string]$payload.$name, "User")' 'npm CLI persists Codex env for new Windows sessions'
+  assert_contains "$CLI" 'persistWindowsUserEnvironment(paths, key)' 'npm CLI wires Windows env during setup'
+  assert_contains "$CLI" 'function clearWindowsUserEnvironment' 'npm CLI can clear Windows User env keys'
+  assert_contains "$CLI" 'SetEnvironmentVariable($name, $null, "User")' 'npm CLI removes Codex env from new Windows sessions'
+  assert_contains "$CLI" 'clearWindowsUserEnvironment()' 'npm CLI wires Windows env cleanup'
   if node "$CLI" --help >/dev/null 2>&1; then
     pass 'npm CLI supports global help flag'
   else

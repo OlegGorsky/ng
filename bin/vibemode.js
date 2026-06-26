@@ -362,6 +362,57 @@ function writeDesktopEnv(paths, key) {
   writeIfChanged(paths.desktopEnv, `${body}\n`, 0o600);
 }
 
+function runWindowsPowerShell(script, input) {
+  const result = childProcess.spawnSync('powershell.exe', [
+    '-NoProfile',
+    '-ExecutionPolicy',
+    'Bypass',
+    '-Command',
+    script,
+  ], {
+    input: input || '',
+    encoding: 'utf8',
+    windowsHide: true,
+  });
+  if (result.error) {
+    throw result.error;
+  }
+  if (result.status !== 0) {
+    const details = sanitizeApiText(`${result.stdout || ''}\n${result.stderr || ''}`, '').trim();
+    throw new Error(`PowerShell user environment update failed: ${details || result.status}`);
+  }
+}
+
+function persistWindowsUserEnvironment(paths, key) {
+  if (process.platform !== 'win32') {
+    return;
+  }
+  const payload = { CODEX_HOME: paths.dir };
+  for (const name of AUTH_ENV_KEYS) {
+    payload[name] = key;
+    process.env[name] = key;
+  }
+  process.env.CODEX_HOME = paths.dir;
+  const script = [
+    '$payload = [Console]::In.ReadToEnd() | ConvertFrom-Json',
+    'foreach ($name in @("CODEX_HOME", "CODEX_KEY", "OPENAI_API_KEY", "CODEX_API_KEY")) {',
+    '  [Environment]::SetEnvironmentVariable($name, [string]$payload.$name, "User")',
+    '}',
+  ].join('; ');
+  runWindowsPowerShell(script, JSON.stringify(payload));
+}
+
+function clearWindowsUserEnvironment() {
+  if (process.platform !== 'win32') {
+    return;
+  }
+  for (const name of AUTH_ENV_KEYS) {
+    delete process.env[name];
+  }
+  const script = 'foreach ($name in @("CODEX_KEY", "OPENAI_API_KEY", "CODEX_API_KEY")) { [Environment]::SetEnvironmentVariable($name, $null, "User") }';
+  runWindowsPowerShell(script);
+}
+
 function startupFiles(paths) {
   const files = [path.join(paths.home, '.profile')];
   const shellName = path.basename(process.env.SHELL || '');
@@ -533,6 +584,7 @@ function writeVibemodeLocal(paths, key, model, options) {
   writeAuthKey(paths, key);
   writeDesktopEnv(paths, key);
   writeShellEnv(paths, key);
+  persistWindowsUserEnvironment(paths, key);
   if (!options.noShell) {
     updateShellStartup(paths);
   }
@@ -555,6 +607,7 @@ function removeVibemodeLocal(paths) {
     fs.rmSync(paths.desktopEnv, { force: true });
   }
   removeShellStartup(paths);
+  clearWindowsUserEnvironment();
 }
 
 function parseConfigValue(text, key) {
@@ -768,6 +821,7 @@ async function commandKey(positionals, options) {
     writeAuthKey(paths, trimmed);
     writeDesktopEnv(paths, trimmed);
     writeShellEnv(paths, trimmed);
+    persistWindowsUserEnvironment(paths, trimmed);
     if (!options.noShell) {
       updateShellStartup(paths);
     }
@@ -785,6 +839,7 @@ async function commandKey(positionals, options) {
       fs.rmSync(paths.desktopEnv, { force: true });
     }
     removeShellStartup(paths);
+    clearWindowsUserEnvironment();
     console.log('key: removed');
     return;
   }

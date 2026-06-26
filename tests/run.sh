@@ -403,6 +403,7 @@ FAKE_CODEX
 
   assert_file "$config" 'npm CLI creates config.toml'
   assert_file "$tmp/home/.codex/auth.json" 'npm CLI creates auth.json'
+  assert_file "$tmp/home/.codex/.env" 'npm CLI creates Codex Desktop env file'
   assert_file "$tmp/home/.codex/vibemode.env" 'npm CLI creates shell env file'
   assert_contains "$config" 'model = "gpt-5.4"' 'npm CLI writes default model'
   assert_contains "$config" 'model_provider = "vibemode"' 'npm CLI selects Vibemode provider'
@@ -412,6 +413,7 @@ FAKE_CODEX
   assert_contains "$config" '[profiles.default]' 'npm CLI writes default profile'
   assert_contains "$config" 'reasoning_effort = "medium"' 'npm CLI writes reasoning effort'
   assert_contains "$tmp/home/.codex/auth.json" '"CODEX_KEY": "test-api-key"' 'npm CLI writes auth key'
+  assert_contains "$tmp/home/.codex/.env" 'CODEX_KEY="test-api-key"' 'npm CLI writes Desktop CODEX_KEY env'
   assert_contains "$tmp/home/.codex/vibemode.env" "export CODEX_KEY='test-api-key'" 'npm CLI writes shell CODEX_KEY export'
   assert_contains "$tmp/home/.profile" '.codex/vibemode.env' 'npm CLI wires shell startup'
   assert_not_contains_text "$output" 'test-api-key' 'npm CLI setup does not print API key'
@@ -641,6 +643,7 @@ test_desktop_setup_creates_config_and_image_helper() {
 
   assert_file "$tmp/home/.codex/config.toml" 'desktop setup creates config.toml'
   assert_file "$tmp/home/.codex/auth.json" 'desktop setup creates auth.json'
+  assert_file "$tmp/home/.codex/.env" 'desktop setup creates Codex Desktop env file'
   assert_file "$helper" 'desktop setup installs image helper'
   if [[ -x "$helper" ]]; then
     pass 'desktop image helper is executable'
@@ -649,6 +652,7 @@ test_desktop_setup_creates_config_and_image_helper() {
   fi
   assert_contains "$tmp/home/.codex/config.toml" 'base_url = "https://api.vibemod.pro/v1"' 'desktop setup writes Vibemode base URL'
   assert_contains "$tmp/home/.codex/auth.json" '"CODEX_KEY": "test-api-key"' 'desktop setup writes API key'
+  assert_contains "$tmp/home/.codex/.env" 'CODEX_KEY="test-api-key"' 'desktop setup writes Desktop CODEX_KEY env'
   assert_not_contains_text "$output" 'test-api-key' 'desktop setup does not print API key'
 
   rm -rf "$tmp"
@@ -924,6 +928,8 @@ test_desktop_powershell_static_checks() {
   assert_contains "$DESKTOP_PS" 'VIBEMODE_SKIP_API_CHECK' 'PowerShell setup supports env API check skip'
   assert_contains "$DESKTOP_PS" 'vibemode key найден в переменной окружения' 'PowerShell setup asks before reusing env key interactively'
   assert_contains "$DESKTOP_PS" '$EnvKey = "CODEX_KEY"' 'PowerShell setup defaults to CODEX_KEY env key'
+  assert_contains "$DESKTOP_PS" '$DesktopEnvFile = Join-Path $CodexDir ".env"' 'PowerShell setup targets Codex Desktop env file'
+  assert_contains "$DESKTOP_PS" 'Write-DesktopEnv $apiKey' 'PowerShell setup writes Codex Desktop env file'
   assert_contains "$DESKTOP_PS" '$lines.Add("env_key = `"$escapedEnvKey`"")' 'PowerShell setup writes Vibemode env key'
   assert_contains "$DESKTOP_PS" '[profiles.default]' 'PowerShell setup writes default profile'
   assert_contains "$DESKTOP_PS" '$DefaultReasoningEffort = "medium"' 'PowerShell setup defaults profile reasoning effort to medium'
@@ -1081,6 +1087,7 @@ test_desktop_powershell_wsl_embedded_script() {
   model_b64="$(printf '%s' 'gpt-5.4' | base64 | tr -d '\n')"
   effort_b64="$(printf '%s' 'medium' | base64 | tr -d '\n')"
   auth_b64="$(printf '{\n  "auth_mode": "apikey",\n  "CODEX_KEY": "test-api-key"\n}\n' | base64 | tr -d '\n')"
+  desktop_env_b64="$(printf 'CODEX_KEY="test-api-key"\n' | base64 | tr -d '\n')"
   helper_b64="$(printf '#!/usr/bin/env python3\nprint("helper")\n' | base64 | tr -d '\n')"
 
   script="${script//__PROVIDER_B64__/$provider_b64}"
@@ -1088,6 +1095,7 @@ test_desktop_powershell_wsl_embedded_script() {
   script="${script//__MODEL_B64__/$model_b64}"
   script="${script//__EFFORT_B64__/$effort_b64}"
   script="${script//__AUTH_B64__/$auth_b64}"
+  script="${script//__DESKTOP_ENV_B64__/$desktop_env_b64}"
   script="${script//__HELPER_B64__/$helper_b64}"
 
   tmp="$(mktemp -d)"
@@ -1102,6 +1110,7 @@ test_desktop_powershell_wsl_embedded_script() {
 
   assert_file "$tmp/home/.codex/config.toml" 'PowerShell WSL script creates config.toml'
   assert_file "$tmp/home/.codex/auth.json" 'PowerShell WSL script creates auth.json'
+  assert_file "$tmp/home/.codex/.env" 'PowerShell WSL script creates Codex Desktop env file'
   assert_file "$tmp/home/.local/bin/responses-image" 'PowerShell WSL script installs image helper'
   if [[ -x "$tmp/home/.local/bin/responses-image" ]]; then
     pass 'PowerShell WSL image helper is executable'
@@ -1114,6 +1123,7 @@ test_desktop_powershell_wsl_embedded_script() {
   assert_contains "$tmp/home/.codex/config.toml" 'reasoning_effort = "medium"' 'PowerShell WSL script writes profile reasoning effort'
   assert_not_contains_file "$tmp/home/.codex/config.toml" 'wire_api = "responses"' 'PowerShell WSL script does not write legacy wire_api'
   assert_contains "$tmp/home/.codex/auth.json" '"CODEX_KEY": "test-api-key"' 'PowerShell WSL script writes API key'
+  assert_contains "$tmp/home/.codex/.env" 'CODEX_KEY="test-api-key"' 'PowerShell WSL script writes Desktop CODEX_KEY env'
   if [[ "$output" == *"codex_dir=$tmp/home/.codex"* && "$output" == *"home=$tmp/home"* && "$output" == *'user='* ]]; then
     pass 'PowerShell WSL script reports user home and config dir'
   else

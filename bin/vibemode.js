@@ -107,6 +107,7 @@ function pathsForLocal() {
     config: path.join(dir, 'config.toml'),
     auth: path.join(dir, 'auth.json'),
     envFile: path.join(dir, 'vibemode.env'),
+    desktopEnv: path.join(dir, '.env'),
     home: homeDir(),
   };
 }
@@ -186,6 +187,10 @@ function tomlEscape(value) {
 
 function shellEscape(value) {
   return `'${String(value).replace(/'/g, `'\\''`)}'`;
+}
+
+function dotenvEscape(value) {
+  return `"${String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\r?\n/g, '')}"`;
 }
 
 function trimBlankEdges(lines) {
@@ -325,6 +330,10 @@ function removeAuthKey(paths) {
 
 function writeShellEnv(paths, key) {
   writeIfChanged(paths.envFile, `export ${ENV_KEY}=${shellEscape(key)}\n`, 0o600);
+}
+
+function writeDesktopEnv(paths, key) {
+  writeIfChanged(paths.desktopEnv, `${ENV_KEY}=${dotenvEscape(key)}\n`, 0o600);
 }
 
 function startupFiles(paths) {
@@ -491,6 +500,7 @@ function writeVibemodeLocal(paths, key, model, options) {
   const current = readText(paths.config);
   writeIfChanged(paths.config, buildVibemodeConfig(current, model), 0o600);
   writeAuthKey(paths, key);
+  writeDesktopEnv(paths, key);
   writeShellEnv(paths, key);
   if (!options.noShell) {
     updateShellStartup(paths);
@@ -508,6 +518,10 @@ function removeVibemodeLocal(paths) {
   if (fs.existsSync(paths.envFile)) {
     backupFile(paths.envFile);
     fs.rmSync(paths.envFile, { force: true });
+  }
+  if (fs.existsSync(paths.desktopEnv)) {
+    backupFile(paths.desktopEnv);
+    fs.rmSync(paths.desktopEnv, { force: true });
   }
   removeShellStartup(paths);
 }
@@ -529,6 +543,7 @@ function statusLocal(paths) {
   console.log(`model: ${model}`);
   console.log(`key: ${keyState}`);
   console.log(`env_file: ${fs.existsSync(paths.envFile) ? 'found' : 'missing'}`);
+  console.log(`desktop_env: ${fs.existsSync(paths.desktopEnv) ? 'found' : 'missing'}`);
 }
 
 function sanitizeApiText(text, key) {
@@ -692,8 +707,10 @@ async function commandKey(positionals, options) {
     if (!key) {
       throw new Error('API key is empty.');
     }
-    writeAuthKey(paths, key.trim());
-    writeShellEnv(paths, key.trim());
+    const trimmed = key.trim();
+    writeAuthKey(paths, trimmed);
+    writeDesktopEnv(paths, trimmed);
+    writeShellEnv(paths, trimmed);
     if (!options.noShell) {
       updateShellStartup(paths);
     }
@@ -705,6 +722,10 @@ async function commandKey(positionals, options) {
     if (fs.existsSync(paths.envFile)) {
       backupFile(paths.envFile);
       fs.rmSync(paths.envFile, { force: true });
+    }
+    if (fs.existsSync(paths.desktopEnv)) {
+      backupFile(paths.desktopEnv);
+      fs.rmSync(paths.desktopEnv, { force: true });
     }
     removeShellStartup(paths);
     console.log('key: removed');

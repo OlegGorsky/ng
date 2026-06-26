@@ -30,6 +30,7 @@ $CodexDir = if ($env:CODEX_HOME) {
 }
 $ConfigFile = Join-Path $CodexDir "config.toml"
 $AuthFile = Join-Path $CodexDir "auth.json"
+$DesktopEnvFile = Join-Path $CodexDir ".env"
 if (-not $ImageHelperPath) {
     $ImageHelperPath = Join-Path (Join-Path $HOME ".local\bin") "responses-image.py"
 }
@@ -53,6 +54,10 @@ function JsonEscape([string]$Value) {
 }
 
 function TomlEscape([string]$Value) {
+    return JsonEscape $Value
+}
+
+function DotEnvEscape([string]$Value) {
     return JsonEscape $Value
 }
 
@@ -351,7 +356,7 @@ function Write-IfChanged([string]$Target, [string]$Body, [int]$Mode = 600) {
         Move-Item -LiteralPath $tmp -Destination $Target -Force
     }
 
-    if ($Target -eq $AuthFile) {
+    if ($Target -eq $AuthFile -or $Target -eq $DesktopEnvFile) {
         Set-PrivateFilePermissions $Target
     }
 }
@@ -433,6 +438,16 @@ function Write-Auth([string]$ApiKey) {
 function Build-AuthBody([string]$ApiKey) {
     $escapedKey = JsonEscape $ApiKey
     return "{`n  `"auth_mode`": `"apikey`",`n  `"CODEX_KEY`": `"$escapedKey`"`n}`n"
+}
+
+function Write-DesktopEnv([string]$ApiKey) {
+    New-Item -ItemType Directory -Force -Path $CodexDir | Out-Null
+    Write-IfChanged $DesktopEnvFile (Build-DesktopEnvBody $ApiKey)
+}
+
+function Build-DesktopEnvBody([string]$ApiKey) {
+    $escapedKey = DotEnvEscape $ApiKey
+    return "CODEX_KEY=`"$escapedKey`"`n"
 }
 
 function Sanitize-Secret([string]$Text, [string]$ApiKey) {
@@ -968,6 +983,7 @@ function Install-WslConfig([string]$ApiKey) {
     $modelB64 = To-Base64 $Model
     $effortB64 = To-Base64 $DefaultReasoningEffort
     $authB64 = To-Base64 (Build-AuthBody $ApiKey)
+    $desktopEnvB64 = To-Base64 (Build-DesktopEnvBody $ApiKey)
 
     $wslScript = @'
 set -euo pipefail
@@ -991,11 +1007,13 @@ model="$(decode '__MODEL_B64__')"
 reasoning_effort="$(decode '__EFFORT_B64__')"
 env_key='CODEX_KEY'
 auth_body_b64='__AUTH_B64__'
+desktop_env_body_b64='__DESKTOP_ENV_B64__'
 helper_body_b64='__HELPER_B64__'
 
 codex_dir="$HOME/.codex"
 config_file="$codex_dir/config.toml"
 auth_file="$codex_dir/auth.json"
+desktop_env_file="$codex_dir/.env"
 mkdir -p "$codex_dir"
 chmod 700 "$codex_dir"
 
@@ -1083,6 +1101,7 @@ build_config_body() {
 config_b64="$(build_config_body | base64 | tr -d '\n')"
 write_if_changed "$config_file" "$config_b64"
 write_if_changed "$auth_file" "$auth_body_b64"
+write_if_changed "$desktop_env_file" "$desktop_env_body_b64"
 
 if [[ -n "$helper_body_b64" ]]; then
   mkdir -p "$HOME/.local/bin"
@@ -1111,6 +1130,7 @@ printf 'home=%s\n' "$HOME"
     $wslScript = $wslScript.Replace('__MODEL_B64__', $modelB64)
     $wslScript = $wslScript.Replace('__EFFORT_B64__', $effortB64)
     $wslScript = $wslScript.Replace('__AUTH_B64__', $authB64)
+    $wslScript = $wslScript.Replace('__DESKTOP_ENV_B64__', $desktopEnvB64)
     $wslScript = $wslScript.Replace('__HELPER_B64__', $helperB64)
 
     $wslArgs = @(Get-WslBaseArgs) + @("--", "bash", "-s")
@@ -1163,6 +1183,7 @@ $apiKey = Read-ApiKey
 Log "Папка Codex Desktop: $CodexDir"
 Write-Config
 Write-Auth $apiKey
+Write-DesktopEnv $apiKey
 Install-ImageHelper
 Install-WslConfig $apiKey
 Install-CodexCli

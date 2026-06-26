@@ -95,6 +95,7 @@ done
 CODEX_DIR="${CODEX_HOME:-$HOME/.codex}"
 CONFIG_FILE="$CODEX_DIR/config.toml"
 AUTH_FILE="$CODEX_DIR/auth.json"
+DESKTOP_ENV_FILE="$CODEX_DIR/.env"
 
 maybe_install_curl() {
   if command -v curl >/dev/null 2>&1; then
@@ -401,6 +402,17 @@ JSON
   write_if_changed "$AUTH_FILE" "$tmp" 600
 }
 
+write_desktop_env() {
+  mkdir -p "$CODEX_DIR"
+  chmod 700 "$CODEX_DIR"
+
+  local tmp escaped_key
+  tmp="$(mktemp "$CODEX_DIR/.env.tmp.XXXXXX")"
+  escaped_key="$(json_escape "$API_KEY")"
+  printf 'CODEX_KEY="%s"\n' "$escaped_key" > "$tmp"
+  write_if_changed "$DESKTOP_ENV_FILE" "$tmp" 600
+}
+
 sanitize_api_error() {
   local text="$1"
   if [[ -n "${API_KEY:-}" ]]; then
@@ -485,6 +497,7 @@ main() {
   log "Папка Codex Desktop: $CODEX_DIR"
   write_config
   write_auth
+  write_desktop_env
   install_image_helper
 
   if is_truthy "$SKIP_API_CHECK"; then

@@ -83,6 +83,12 @@ reasoning_effort = "medium"
 }
 ```
 
+В `.env` для Codex Desktop записывается:
+
+```dotenv
+CODEX_KEY="..."
+```
+
 После обновления перезапусти Codex Desktop, чтобы приложение перечитало provider config.
 
 Если проверка `/v1/responses` вернула `HTTP 401`, настройки уже сохранены. Это обычно означает, что API-ключ не принят сервером. Для принудительной замены ключа в Windows скопируй новый ключ в буфер и запусти:
@@ -99,9 +105,9 @@ $env:VIBEMODE_SKIP_API_CHECK='1'; irm https://raw.githubusercontent.com/OlegGors
 
 ## Окно авторизации Codex Desktop
 
-Скрипт не авторизует подписку ChatGPT внутри UI Codex Desktop. Он включает API-режим через локальные файлы `config.toml` и `auth.json`.
+Скрипт не авторизует подписку ChatGPT внутри UI Codex Desktop. Он включает API-режим через локальные файлы `config.toml`, `auth.json` и `.env`.
 
-Если Codex Desktop после установки показывает выбор авторизации, выбирай вариант с API, а не подписку. Если приложение снова просит ключ, проверь, что `config.toml` и `auth.json` лежат в `%USERPROFILE%\.codex` на Windows или в `~/.codex` внутри выбранного WSL/default user.
+Если Codex Desktop после установки показывает выбор авторизации, выбирай вариант с API, а не подписку. Если приложение снова просит ключ, проверь, что `config.toml`, `auth.json` и `.env` лежат в `%USERPROFILE%\.codex` на Windows или в `~/.codex` внутри выбранного WSL/default user.
 
 ## Картинки
 

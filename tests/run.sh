@@ -390,6 +390,7 @@ cat > "$bin/codex" <<'FAKE_CODEX'
 #!/usr/bin/env bash
 printf 'CODEX_KEY=%s\n' "${CODEX_KEY:-missing}" > "$VIBEMODE_RUN_CAPTURE"
 printf 'OPENAI_API_KEY=%s\n' "${OPENAI_API_KEY:-missing}" >> "$VIBEMODE_RUN_CAPTURE"
+printf 'CODEX_API_KEY=%s\n' "${CODEX_API_KEY:-missing}" >> "$VIBEMODE_RUN_CAPTURE"
 printf 'fake codex %s\n' "$*"
 FAKE_CODEX
   chmod +x "$bin/codex"
@@ -415,10 +416,13 @@ FAKE_CODEX
   assert_contains "$config" 'reasoning_effort = "medium"' 'npm CLI writes reasoning effort'
   assert_contains "$tmp/home/.codex/auth.json" '"CODEX_KEY": "test-api-key"' 'npm CLI writes auth key'
   assert_contains "$tmp/home/.codex/auth.json" '"OPENAI_API_KEY": "test-api-key"' 'npm CLI writes OpenAI-compatible auth key'
+  assert_contains "$tmp/home/.codex/auth.json" '"CODEX_API_KEY": "test-api-key"' 'npm CLI writes Codex exec-compatible auth key'
   assert_contains "$tmp/home/.codex/.env" 'CODEX_KEY="test-api-key"' 'npm CLI writes Desktop CODEX_KEY env'
   assert_contains "$tmp/home/.codex/.env" 'OPENAI_API_KEY="test-api-key"' 'npm CLI writes Desktop OPENAI_API_KEY env'
+  assert_contains "$tmp/home/.codex/.env" 'CODEX_API_KEY="test-api-key"' 'npm CLI writes Desktop CODEX_API_KEY env'
   assert_contains "$tmp/home/.codex/vibemode.env" "export CODEX_KEY='test-api-key'" 'npm CLI writes shell CODEX_KEY export'
   assert_contains "$tmp/home/.codex/vibemode.env" "export OPENAI_API_KEY='test-api-key'" 'npm CLI writes shell OPENAI_API_KEY export'
+  assert_contains "$tmp/home/.codex/vibemode.env" "export CODEX_API_KEY='test-api-key'" 'npm CLI writes shell CODEX_API_KEY export'
   assert_contains "$tmp/home/.profile" '.codex/vibemode.env' 'npm CLI wires shell startup'
   assert_not_contains_text "$output" 'test-api-key' 'npm CLI setup does not print API key'
 
@@ -446,6 +450,7 @@ FAKE_CODEX
   pass 'npm CLI run launches command with saved key'
   assert_contains "$capture" 'CODEX_KEY=test-api-key' 'npm CLI run injects saved CODEX_KEY'
   assert_contains "$capture" 'OPENAI_API_KEY=test-api-key' 'npm CLI run injects saved OPENAI_API_KEY'
+  assert_contains "$capture" 'CODEX_API_KEY=test-api-key' 'npm CLI run injects saved CODEX_API_KEY'
   assert_not_contains_text "$run_output" 'test-api-key' 'npm CLI run does not print API key'
 
   if ! output="$(PATH="$bin:$PATH" run_cli "$tmp/home" use openai --non-interactive)"; then
@@ -467,6 +472,7 @@ FAKE_CODEX
     return
   fi
   pass 'npm CLI removes Vibemode key material'
+  assert_not_contains_file "$tmp/home/.codex/auth.json" 'CODEX_API_KEY' 'npm CLI removes CODEX_API_KEY from auth.json'
   if [[ ! -f "$tmp/home/.codex/vibemode.env" ]]; then
     pass 'npm CLI removes shell env file'
   else
@@ -511,8 +517,10 @@ FAKE_CODEX
   assert_not_contains_file "$tmp/home/.codex/config.toml" 'wire_api = "responses"' 'does not write legacy wire_api'
   assert_contains "$tmp/home/.codex/auth.json" '"CODEX_KEY": "test-api-key"' 'writes API key to auth.json'
   assert_contains "$tmp/home/.codex/auth.json" '"OPENAI_API_KEY": "test-api-key"' 'writes OpenAI-compatible API key to auth.json'
+  assert_contains "$tmp/home/.codex/auth.json" '"CODEX_API_KEY": "test-api-key"' 'writes Codex exec-compatible API key to auth.json'
   assert_contains "$tmp/home/.codex/vibemode.env" "export CODEX_KEY='test-api-key'" 'writes shell CODEX_KEY export'
   assert_contains "$tmp/home/.codex/vibemode.env" "export OPENAI_API_KEY='test-api-key'" 'writes shell OPENAI_API_KEY export'
+  assert_contains "$tmp/home/.codex/vibemode.env" "export CODEX_API_KEY='test-api-key'" 'writes shell CODEX_API_KEY export'
   assert_contains "$tmp/home/.profile" '.codex/vibemode.env' 'profile sources shell env file'
   assert_not_contains_text "$output" 'test-api-key' 'does not print API key'
   assert_not_contains_text "$output" 'Authorization: Bearer' 'does not print bearer header'
@@ -603,33 +611,39 @@ TOML
 }
 
 test_reuses_existing_auth_key_non_interactive() {
-  local tmp bin output auth
-  tmp="$(mktemp -d)"
-  bin="$tmp/bin"
-  auth="$tmp/home/.codex/auth.json"
-  mkdir -p "$bin" "$(dirname "$auth")"
-  make_fake_curl "$bin"
+  local tmp bin output auth key_name existing_key
+  for key_name in CODEX_KEY OPENAI_API_KEY CODEX_API_KEY; do
+    tmp="$(mktemp -d)"
+    bin="$tmp/bin"
+    auth="$tmp/home/.codex/auth.json"
+    existing_key="existing-${key_name}-test-api-key"
+    mkdir -p "$bin" "$(dirname "$auth")"
+    make_fake_curl "$bin"
 
-  cat > "$auth" <<'JSON'
+    cat > "$auth" <<JSON
 {
   "auth_mode": "apikey",
-  "CODEX_KEY": "existing-test-api-key"
+  "$key_name": "$existing_key"
 }
 JSON
 
-  if ! output="$(env -u CODEX_KEY HOME="$tmp/home" CODEX_HOME="$tmp/home/.codex" PATH="$bin:$PATH" bash "$SCRIPT" --non-interactive 2>&1)"; then
-    printf '%s\n' "$output" >&2
-    fail 'non-interactive mode reuses existing auth.json key'
+    if ! output="$(env -u CODEX_KEY -u OPENAI_API_KEY -u CODEX_API_KEY HOME="$tmp/home" CODEX_HOME="$tmp/home/.codex" PATH="$bin:$PATH" bash "$SCRIPT" --non-interactive 2>&1)"; then
+      printf '%s\n' "$output" >&2
+      fail "non-interactive mode reuses existing $key_name auth.json key"
+      rm -rf "$tmp"
+      return
+    fi
+    pass "non-interactive mode reuses existing $key_name auth.json key"
+
+    assert_contains "$auth" "\"CODEX_KEY\": \"$existing_key\"" "keeps existing $key_name key as CODEX_KEY"
+    assert_contains "$auth" "\"OPENAI_API_KEY\": \"$existing_key\"" "writes existing $key_name key as OPENAI_API_KEY"
+    assert_contains "$auth" "\"CODEX_API_KEY\": \"$existing_key\"" "writes existing $key_name key as CODEX_API_KEY"
+    assert_contains "$tmp/home/.codex/vibemode.env" "export CODEX_KEY='$existing_key'" "writes reused $key_name key to shell env"
+    assert_contains "$tmp/home/.codex/vibemode.env" "export CODEX_API_KEY='$existing_key'" "writes reused $key_name key to Codex API shell env"
+    assert_not_contains_text "$output" "$existing_key" "does not print reused $key_name API key"
+
     rm -rf "$tmp"
-    return
-  fi
-  pass 'non-interactive mode reuses existing auth.json key'
-
-  assert_contains "$auth" '"CODEX_KEY": "existing-test-api-key"' 'keeps existing API key'
-  assert_contains "$tmp/home/.codex/vibemode.env" "export CODEX_KEY='existing-test-api-key'" 'writes reused key to shell env'
-  assert_not_contains_text "$output" 'existing-test-api-key' 'does not print reused API key'
-
-  rm -rf "$tmp"
+  done
 }
 
 test_desktop_setup_creates_config_and_image_helper() {
@@ -660,42 +674,50 @@ test_desktop_setup_creates_config_and_image_helper() {
   assert_contains "$tmp/home/.codex/config.toml" 'base_url = "https://api.vibemod.pro/v1"' 'desktop setup writes Vibemode base URL'
   assert_contains "$tmp/home/.codex/auth.json" '"CODEX_KEY": "test-api-key"' 'desktop setup writes API key'
   assert_contains "$tmp/home/.codex/auth.json" '"OPENAI_API_KEY": "test-api-key"' 'desktop setup writes OpenAI-compatible API key'
+  assert_contains "$tmp/home/.codex/auth.json" '"CODEX_API_KEY": "test-api-key"' 'desktop setup writes Codex exec-compatible API key'
   assert_contains "$tmp/home/.codex/.env" 'CODEX_KEY="test-api-key"' 'desktop setup writes Desktop CODEX_KEY env'
   assert_contains "$tmp/home/.codex/.env" 'OPENAI_API_KEY="test-api-key"' 'desktop setup writes Desktop OPENAI_API_KEY env'
+  assert_contains "$tmp/home/.codex/.env" 'CODEX_API_KEY="test-api-key"' 'desktop setup writes Desktop CODEX_API_KEY env'
   assert_not_contains_text "$output" 'test-api-key' 'desktop setup does not print API key'
 
   rm -rf "$tmp"
 }
 
 test_desktop_setup_reuses_existing_auth_key() {
-  local tmp bin output auth helper
-  tmp="$(mktemp -d)"
-  bin="$tmp/bin"
-  auth="$tmp/home/.codex/auth.json"
-  helper="$tmp/home/.local/bin/responses-image"
-  mkdir -p "$bin" "$(dirname "$auth")"
-  make_fake_desktop_curl "$bin"
+  local tmp bin output auth helper key_name existing_key
+  for key_name in CODEX_KEY OPENAI_API_KEY CODEX_API_KEY; do
+    tmp="$(mktemp -d)"
+    bin="$tmp/bin"
+    auth="$tmp/home/.codex/auth.json"
+    helper="$tmp/home/.local/bin/responses-image"
+    existing_key="existing-${key_name}-test-api-key"
+    mkdir -p "$bin" "$(dirname "$auth")"
+    make_fake_desktop_curl "$bin"
 
-  cat > "$auth" <<'JSON'
+    cat > "$auth" <<JSON
 {
   "auth_mode": "apikey",
-  "CODEX_KEY": "existing-test-api-key"
+  "$key_name": "$existing_key"
 }
 JSON
 
-  if ! output="$(env -u CODEX_KEY HOME="$tmp/home" CODEX_HOME="$tmp/home/.codex" PATH="$bin:$PATH" bash "$DESKTOP_SCRIPT" --non-interactive 2>&1)"; then
-    printf '%s\n' "$output" >&2
-    fail 'desktop setup reuses existing auth.json key'
+    if ! output="$(env -u CODEX_KEY -u OPENAI_API_KEY -u CODEX_API_KEY HOME="$tmp/home" CODEX_HOME="$tmp/home/.codex" PATH="$bin:$PATH" bash "$DESKTOP_SCRIPT" --non-interactive 2>&1)"; then
+      printf '%s\n' "$output" >&2
+      fail "desktop setup reuses existing $key_name auth.json key"
+      rm -rf "$tmp"
+      return
+    fi
+    pass "desktop setup reuses existing $key_name auth.json key"
+
+    assert_file "$helper" "desktop setup installs image helper while reusing $key_name key"
+    assert_contains "$auth" "\"CODEX_KEY\": \"$existing_key\"" "desktop setup keeps existing $key_name key as CODEX_KEY"
+    assert_contains "$auth" "\"OPENAI_API_KEY\": \"$existing_key\"" "desktop setup writes existing $key_name key as OPENAI_API_KEY"
+    assert_contains "$auth" "\"CODEX_API_KEY\": \"$existing_key\"" "desktop setup writes existing $key_name key as CODEX_API_KEY"
+    assert_contains "$tmp/home/.codex/.env" "CODEX_API_KEY=\"$existing_key\"" "desktop setup writes reused $key_name key to Desktop CODEX_API_KEY env"
+    assert_not_contains_text "$output" "$existing_key" "desktop setup does not print reused $key_name API key"
+
     rm -rf "$tmp"
-    return
-  fi
-  pass 'desktop setup reuses existing auth.json key'
-
-  assert_file "$helper" 'desktop setup installs image helper while reusing key'
-  assert_contains "$auth" '"CODEX_KEY": "existing-test-api-key"' 'desktop setup keeps existing API key'
-  assert_not_contains_text "$output" 'existing-test-api-key' 'desktop setup does not print reused API key'
-
-  rm -rf "$tmp"
+  done
 }
 
 test_desktop_setup_can_replace_existing_auth_key() {
@@ -715,7 +737,7 @@ test_desktop_setup_can_replace_existing_auth_key() {
 }
 JSON
 
-  if output="$(printf 'r\nnew-test-api-key\n' | env -u CODEX_KEY HOME="$tmp/home" CODEX_HOME="$tmp/home/.codex" \
+  if output="$(printf 'r\nnew-test-api-key\n' | env -u CODEX_KEY -u OPENAI_API_KEY -u CODEX_API_KEY HOME="$tmp/home" CODEX_HOME="$tmp/home/.codex" \
     script -qfec "bash \"$DESKTOP_SCRIPT\" --skip-api-check --no-image-helper" /dev/null 2>&1)"; then
     pass 'desktop setup can replace existing auth.json key'
   else
@@ -785,7 +807,7 @@ test_desktop_setup_masks_direct_key_paste_over_existing_auth() {
 }
 JSON
 
-  if output="$(printf 'direct-test-api-key\n' | env -u CODEX_KEY HOME="$tmp/home" CODEX_HOME="$tmp/home/.codex" \
+  if output="$(printf 'direct-test-api-key\n' | env -u CODEX_KEY -u OPENAI_API_KEY -u CODEX_API_KEY HOME="$tmp/home" CODEX_HOME="$tmp/home/.codex" \
     script -qfec "bash \"$DESKTOP_SCRIPT\" --skip-api-check --no-image-helper" /dev/null 2>&1)"; then
     pass 'desktop setup accepts direct masked key paste over existing auth'
   else
@@ -938,13 +960,18 @@ test_desktop_powershell_static_checks() {
   assert_contains "$DESKTOP_PS" 'vibemode key найден в переменной окружения' 'PowerShell setup asks before reusing env key interactively'
   assert_contains "$DESKTOP_PS" '$EnvKey = "CODEX_KEY"' 'PowerShell setup defaults to CODEX_KEY env key'
   assert_contains "$DESKTOP_PS" '$OpenAiEnvKey = "OPENAI_API_KEY"' 'PowerShell setup defines OpenAI-compatible env key'
+  assert_contains "$DESKTOP_PS" '$CodexApiEnvKey = "CODEX_API_KEY"' 'PowerShell setup defines Codex API env key'
   assert_contains "$DESKTOP_PS" '$DesktopEnvFile = Join-Path $CodexDir ".env"' 'PowerShell setup targets Codex Desktop env file'
   assert_contains "$DESKTOP_PS" 'Write-DesktopEnv $apiKey' 'PowerShell setup writes Codex Desktop env file'
   assert_contains "$DESKTOP_PS" 'Set-Item -Path ("Env:" + $EnvKey) -Value $ApiKey' 'PowerShell setup sets CODEX_KEY for current CLI session'
   assert_contains "$DESKTOP_PS" 'Set-Item -Path ("Env:" + $OpenAiEnvKey) -Value $ApiKey' 'PowerShell setup sets OPENAI_API_KEY for current CLI session'
+  assert_contains "$DESKTOP_PS" 'Set-Item -Path ("Env:" + $CodexApiEnvKey) -Value $ApiKey' 'PowerShell setup sets CODEX_API_KEY for current CLI session'
   assert_contains "$DESKTOP_PS" '[Environment]::SetEnvironmentVariable($EnvKey, $ApiKey, "User")' 'PowerShell setup persists CODEX_KEY for new CLI sessions'
   assert_contains "$DESKTOP_PS" '[Environment]::SetEnvironmentVariable($OpenAiEnvKey, $ApiKey, "User")' 'PowerShell setup persists OPENAI_API_KEY for new CLI sessions'
+  assert_contains "$DESKTOP_PS" '[Environment]::SetEnvironmentVariable($CodexApiEnvKey, $ApiKey, "User")' 'PowerShell setup persists CODEX_API_KEY for new CLI sessions'
   assert_contains "$DESKTOP_PS" 'Set-CodexKeyEnvironment $apiKey' 'PowerShell setup applies CLI env key'
+  assert_contains "$DESKTOP_PS" 'Invoke-CodexLogin $apiKey' 'PowerShell setup runs official Codex API-key login'
+  assert_contains "$DESKTOP_PS" '"login", "--with-api-key"' 'PowerShell setup uses codex login --with-api-key'
   assert_contains "$DESKTOP_PS" '$lines.Add("env_key = `"$escapedEnvKey`"")' 'PowerShell setup writes Vibemode env key'
   assert_contains "$DESKTOP_PS" '[profiles.default]' 'PowerShell setup writes default profile'
   assert_contains "$DESKTOP_PS" '$DefaultReasoningEffort = "medium"' 'PowerShell setup defaults profile reasoning effort to medium'
@@ -1101,8 +1128,8 @@ test_desktop_powershell_wsl_embedded_script() {
   base_url_b64="$(printf '%s' 'https://api.vibemod.pro/v1' | base64 | tr -d '\n')"
   model_b64="$(printf '%s' 'gpt-5.4' | base64 | tr -d '\n')"
   effort_b64="$(printf '%s' 'medium' | base64 | tr -d '\n')"
-  auth_b64="$(printf '{\n  "auth_mode": "apikey",\n  "CODEX_KEY": "test-api-key",\n  "OPENAI_API_KEY": "test-api-key"\n}\n' | base64 | tr -d '\n')"
-  desktop_env_b64="$(printf 'CODEX_KEY="test-api-key"\nOPENAI_API_KEY="test-api-key"\n' | base64 | tr -d '\n')"
+  auth_b64="$(printf '{\n  "auth_mode": "apikey",\n  "CODEX_KEY": "test-api-key",\n  "OPENAI_API_KEY": "test-api-key",\n  "CODEX_API_KEY": "test-api-key"\n}\n' | base64 | tr -d '\n')"
+  desktop_env_b64="$(printf 'CODEX_KEY="test-api-key"\nOPENAI_API_KEY="test-api-key"\nCODEX_API_KEY="test-api-key"\n' | base64 | tr -d '\n')"
   helper_b64="$(printf '#!/usr/bin/env python3\nprint("helper")\n' | base64 | tr -d '\n')"
 
   script="${script//__PROVIDER_B64__/$provider_b64}"
@@ -1139,8 +1166,10 @@ test_desktop_powershell_wsl_embedded_script() {
   assert_not_contains_file "$tmp/home/.codex/config.toml" 'wire_api = "responses"' 'PowerShell WSL script does not write legacy wire_api'
   assert_contains "$tmp/home/.codex/auth.json" '"CODEX_KEY": "test-api-key"' 'PowerShell WSL script writes API key'
   assert_contains "$tmp/home/.codex/auth.json" '"OPENAI_API_KEY": "test-api-key"' 'PowerShell WSL script writes OpenAI-compatible API key'
+  assert_contains "$tmp/home/.codex/auth.json" '"CODEX_API_KEY": "test-api-key"' 'PowerShell WSL script writes Codex API key'
   assert_contains "$tmp/home/.codex/.env" 'CODEX_KEY="test-api-key"' 'PowerShell WSL script writes Desktop CODEX_KEY env'
   assert_contains "$tmp/home/.codex/.env" 'OPENAI_API_KEY="test-api-key"' 'PowerShell WSL script writes Desktop OPENAI_API_KEY env'
+  assert_contains "$tmp/home/.codex/.env" 'CODEX_API_KEY="test-api-key"' 'PowerShell WSL script writes Desktop CODEX_API_KEY env'
   if [[ "$output" == *"codex_dir=$tmp/home/.codex"* && "$output" == *"home=$tmp/home"* && "$output" == *'user='* ]]; then
     pass 'PowerShell WSL script reports user home and config dir'
   else
@@ -1243,7 +1272,7 @@ test_desktop_interactive_prompt_reads_from_tty() {
   fi
 
   tmp="$(mktemp -d)"
-  if output="$(printf 'tty-test-key\n' | env -u CODEX_KEY HOME="$tmp/home" CODEX_HOME="$tmp/codex" \
+  if output="$(printf 'tty-test-key\n' | env -u CODEX_KEY -u OPENAI_API_KEY -u CODEX_API_KEY HOME="$tmp/home" CODEX_HOME="$tmp/codex" \
     script -qfec "bash \"$DESKTOP_SCRIPT\" --skip-api-check --no-image-helper" /dev/null 2>&1)"; then
     pass 'desktop interactive prompt reads key from tty'
   else
@@ -1302,7 +1331,7 @@ test_image_helper_reads_selected_codex_provider() {
   cat > "$codex/auth.json" <<'JSON'
 {
   "auth_mode": "apikey",
-  "CODEX_KEY": "existing-test-api-key"
+  "OPENAI_API_KEY": "existing-test-api-key"
 }
 JSON
   cat > "$codex/config.toml" <<'TOML'
@@ -1322,7 +1351,7 @@ base_url = "https://api.vibemod.pro/v1"
 env_key = "CODEX_KEY"
 TOML
 
-  if output="$(env -u CODEX_KEY CODEX_HOME="$codex" python3 - "$ROOT_DIR/scripts/responses_image.py" <<'PY' 2>&1
+  if output="$(env -u CODEX_KEY -u OPENAI_API_KEY -u CODEX_API_KEY CODEX_HOME="$codex" python3 - "$ROOT_DIR/scripts/responses_image.py" <<'PY' 2>&1
 import importlib.util
 import sys
 
@@ -1365,7 +1394,7 @@ test_requires_key_when_non_interactive() {
   make_fake_curl "$bin"
 
   set +e
-  output="$(env -u CODEX_KEY HOME="$tmp/home" CODEX_HOME="$tmp/home/.codex" PATH="$bin:$PATH" bash "$SCRIPT" --non-interactive 2>&1)"
+  output="$(env -u CODEX_KEY -u OPENAI_API_KEY -u CODEX_API_KEY HOME="$tmp/home" CODEX_HOME="$tmp/home/.codex" PATH="$bin:$PATH" bash "$SCRIPT" --non-interactive 2>&1)"
   status="$?"
   set -e
 
@@ -1404,7 +1433,7 @@ test_termux_setup_can_replace_existing_auth_key() {
 }
 JSON
 
-  if output="$(printf 'new-test-api-key\n' | env -u CODEX_KEY HOME="$tmp/home" CODEX_HOME="$tmp/home/.codex" PATH="$bin:$PATH" \
+  if output="$(printf 'new-test-api-key\n' | env -u CODEX_KEY -u OPENAI_API_KEY -u CODEX_API_KEY HOME="$tmp/home" CODEX_HOME="$tmp/home/.codex" PATH="$bin:$PATH" \
     script -qfec "bash \"$SCRIPT\" --model gpt-5 --replace-key" /dev/null 2>&1)"; then
     pass 'Termux setup can replace existing auth.json key'
   else
@@ -1444,7 +1473,7 @@ test_termux_setup_masks_direct_key_paste_over_existing_auth() {
 }
 JSON
 
-  if output="$(printf 'direct-test-api-key\n' | env -u CODEX_KEY HOME="$tmp/home" CODEX_HOME="$tmp/home/.codex" PATH="$bin:$PATH" \
+  if output="$(printf 'direct-test-api-key\n' | env -u CODEX_KEY -u OPENAI_API_KEY -u CODEX_API_KEY HOME="$tmp/home" CODEX_HOME="$tmp/home/.codex" PATH="$bin:$PATH" \
     script -qfec "bash \"$SCRIPT\" --model gpt-5" /dev/null 2>&1)"; then
     pass 'Termux setup accepts direct masked key paste over existing auth'
   else

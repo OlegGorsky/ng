@@ -80,7 +80,8 @@ reasoning_effort = "medium"
 {
   "auth_mode": "apikey",
   "CODEX_KEY": "...",
-  "OPENAI_API_KEY": "..."
+  "OPENAI_API_KEY": "...",
+  "CODEX_API_KEY": "..."
 }
 ```
 
@@ -89,6 +90,7 @@ reasoning_effort = "medium"
 ```dotenv
 CODEX_KEY="..."
 OPENAI_API_KEY="..."
+CODEX_API_KEY="..."
 ```
 
 После обновления перезапусти Codex Desktop, чтобы приложение перечитало provider config.
@@ -155,7 +157,7 @@ Windows:
 ~/.local/bin/responses-image generate "cinematic photo of a compact AI workstation" --size wide --quality high
 ```
 
-Helper читает `CODEX_KEY` из Codex `auth.json`, а `base_url` и модель из активного `model_provider`, поэтому после desktop setup картинки идут через Vibemode.
+Helper читает ключ из Codex `auth.json` (`CODEX_KEY`, `OPENAI_API_KEY` или `CODEX_API_KEY`), а `base_url` и модель из активного `model_provider`, поэтому после desktop setup картинки идут через Vibemode.
 
 ## Локальный запуск из клона
 
@@ -171,7 +173,7 @@ Windows:
 powershell -ExecutionPolicy Bypass -File .\setup-vibemode-codex-desktop.ps1
 ```
 
-Windows setup также пробует поставить Codex CLI: `@openai/codex` через npm, а при отсутствии npm — Node.js LTS через `winget` или официальный zip с `nodejs.org`.
+Windows setup также пробует поставить Codex CLI: `@openai/codex` через npm, а при отсутствии npm — Node.js LTS через `winget` или официальный zip с `nodejs.org`. После установки CLI Windows setup выполняет `codex login --with-api-key` и затем сохраняет ключ во все совместимые имена: `CODEX_KEY`, `OPENAI_API_KEY` и `CODEX_API_KEY`.
 
 Полезные опции:
 

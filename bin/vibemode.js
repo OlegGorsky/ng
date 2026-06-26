@@ -15,6 +15,8 @@ const OPENAI_MODEL = 'gpt-5';
 const DEFAULT_REASONING_EFFORT = 'medium';
 const ENV_KEY = 'CODEX_KEY';
 const OPENAI_ENV_KEY = 'OPENAI_API_KEY';
+const CODEX_API_ENV_KEY = 'CODEX_API_KEY';
+const AUTH_ENV_KEYS = [ENV_KEY, OPENAI_ENV_KEY, CODEX_API_ENV_KEY];
 const SHELL_ENV_BEGIN = '# >>> vibemode codex >>>';
 const SHELL_ENV_END = '# <<< vibemode codex <<<';
 
@@ -45,6 +47,8 @@ Options:
 
 Environment:
   CODEX_KEY            Vibemode API key.
+  OPENAI_API_KEY       OpenAI-compatible API key fallback.
+  CODEX_API_KEY        Codex exec-compatible API key fallback.
   CODEX_HOME           Codex config directory. Default: ~/.codex.`);
 }
 
@@ -309,15 +313,21 @@ function parseJsonFile(file) {
 
 function readAuthKey(paths) {
   const payload = parseJsonFile(paths.auth);
-  const value = payload[ENV_KEY] || payload[OPENAI_ENV_KEY];
-  return typeof value === 'string' && value.trim() ? value.trim() : '';
+  for (const name of AUTH_ENV_KEYS) {
+    const value = payload[name];
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+  }
+  return '';
 }
 
 function writeAuthKey(paths, key) {
   const payload = parseJsonFile(paths.auth);
   payload.auth_mode = 'apikey';
-  payload[ENV_KEY] = key;
-  payload[OPENAI_ENV_KEY] = key;
+  for (const name of AUTH_ENV_KEYS) {
+    payload[name] = key;
+  }
   writeIfChanged(paths.auth, `${JSON.stringify(payload, null, 2)}\n`, 0o600);
 }
 
@@ -326,17 +336,20 @@ function removeAuthKey(paths) {
     return;
   }
   const payload = parseJsonFile(paths.auth);
-  delete payload[ENV_KEY];
-  delete payload[OPENAI_ENV_KEY];
+  for (const name of AUTH_ENV_KEYS) {
+    delete payload[name];
+  }
   writeIfChanged(paths.auth, `${JSON.stringify(payload, null, 2)}\n`, 0o600);
 }
 
 function writeShellEnv(paths, key) {
-  writeIfChanged(paths.envFile, `export ${ENV_KEY}=${shellEscape(key)}\nexport ${OPENAI_ENV_KEY}=${shellEscape(key)}\n`, 0o600);
+  const body = AUTH_ENV_KEYS.map(name => `export ${name}=${shellEscape(key)}`).join('\n');
+  writeIfChanged(paths.envFile, `${body}\n`, 0o600);
 }
 
 function writeDesktopEnv(paths, key) {
-  writeIfChanged(paths.desktopEnv, `${ENV_KEY}=${dotenvEscape(key)}\n${OPENAI_ENV_KEY}=${dotenvEscape(key)}\n`, 0o600);
+  const body = AUTH_ENV_KEYS.map(name => `${name}=${dotenvEscape(key)}`).join('\n');
+  writeIfChanged(paths.desktopEnv, `${body}\n`, 0o600);
 }
 
 function startupFiles(paths) {
@@ -408,18 +421,21 @@ function fileMode(file) {
 
 function readEnvFileKey(paths) {
   const text = readText(paths.envFile);
-  const match = text.match(new RegExp(`^export\\s+${ENV_KEY}=('(?:'\\\\''|[^'])*'|"[^"]*"|\\S+)`, 'm'));
-  if (!match) {
-    return '';
+  for (const name of AUTH_ENV_KEYS) {
+    const match = text.match(new RegExp(`^export\\s+${name}=('(?:'\\\\''|[^'])*'|"[^"]*"|\\S+)`, 'm'));
+    if (!match) {
+      continue;
+    }
+    const raw = match[1];
+    if (raw.startsWith("'") && raw.endsWith("'")) {
+      return raw.slice(1, -1).replace(/'\\''/g, "'");
+    }
+    if (raw.startsWith('"') && raw.endsWith('"')) {
+      return raw.slice(1, -1);
+    }
+    return raw;
   }
-  const raw = match[1];
-  if (raw.startsWith("'") && raw.endsWith("'")) {
-    return raw.slice(1, -1).replace(/'\\''/g, "'");
-  }
-  if (raw.startsWith('"') && raw.endsWith('"')) {
-    return raw.slice(1, -1);
-  }
-  return raw;
+  return '';
 }
 
 function savedKey(paths) {
@@ -430,8 +446,10 @@ async function resolveApiKey(paths, options) {
   if (options.key) {
     return String(options.key).trim();
   }
-  if (process.env[ENV_KEY] && process.env[ENV_KEY].trim()) {
-    return process.env[ENV_KEY].trim();
+  for (const name of AUTH_ENV_KEYS) {
+    if (process.env[name] && process.env[name].trim()) {
+      return process.env[name].trim();
+    }
   }
   if (!options.replaceKey) {
     const existing = readAuthKey(paths);
@@ -538,7 +556,8 @@ function statusLocal(paths) {
   const config = readText(paths.config);
   const provider = parseConfigValue(config, 'model_provider') || 'unknown';
   const model = parseConfigValue(config, 'model') || 'unknown';
-  const keyState = savedKey(paths) ? 'saved' : (process.env[ENV_KEY] ? 'env' : 'missing');
+  const hasEnvKey = AUTH_ENV_KEYS.some(name => process.env[name] && process.env[name].trim());
+  const keyState = savedKey(paths) ? 'saved' : (hasEnvKey ? 'env' : 'missing');
 
   console.log(`codex_dir: ${paths.dir}`);
   console.log(`config: ${fs.existsSync(paths.config) ? 'found' : 'missing'}`);
@@ -746,13 +765,16 @@ function commandRun(runArgs) {
     throw new Error('Usage: vibemode run -- codex --yolo');
   }
   const paths = pathsForLocal();
-  const key = savedKey(paths) || (process.env[ENV_KEY] || '').trim();
+  const key = savedKey(paths) || AUTH_ENV_KEYS.map(name => (process.env[name] || '').trim()).find(Boolean);
   if (!key) {
     throw new Error(`Saved ${ENV_KEY} not found. Run: vibemode setup`);
   }
 
   const [command, ...args] = runArgs;
-  const env = { ...process.env, [ENV_KEY]: key, [OPENAI_ENV_KEY]: key };
+  const env = { ...process.env };
+  for (const name of AUTH_ENV_KEYS) {
+    env[name] = key;
+  }
   const result = childProcess.spawnSync(command, args, {
     env,
     stdio: 'inherit',

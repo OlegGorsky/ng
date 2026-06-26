@@ -7,6 +7,8 @@ DEFAULT_MODEL='gpt-5.4'
 DEFAULT_REASONING_EFFORT='medium'
 ENV_KEY='CODEX_KEY'
 OPENAI_ENV_KEY='OPENAI_API_KEY'
+CODEX_API_ENV_KEY='CODEX_API_KEY'
+AUTH_ENV_KEYS=("$ENV_KEY" "$OPENAI_ENV_KEY" "$CODEX_API_ENV_KEY")
 IMAGE_HELPER_URL="${VIBEMODE_IMAGE_HELPER_URL:-https://raw.githubusercontent.com/OlegGorsky/ng/main/scripts/responses_image.py}"
 
 NON_INTERACTIVE=0
@@ -14,7 +16,7 @@ SKIP_API_CHECK="${VIBEMODE_SKIP_API_CHECK:-0}"
 INSTALL_IMAGE_HELPER=1
 REPLACE_KEY="${VIBEMODE_REPLACE_KEY:-0}"
 MODEL="$DEFAULT_MODEL"
-API_KEY="${CODEX_KEY:-}"
+API_KEY="${CODEX_KEY:-${OPENAI_API_KEY:-${CODEX_API_KEY:-}}}"
 IMAGE_HELPER_PATH="${VIBEMODE_IMAGE_HELPER_PATH:-$HOME/.local/bin/responses-image}"
 
 usage() {
@@ -35,7 +37,9 @@ usage() {
 
 Переменные окружения:
   CODEX_KEY               Основной способ передать Vibemode/Codex key в non-interactive режиме.
-                          Если переменная пуста, переиспользуется CODEX_KEY из auth.json.
+  OPENAI_API_KEY          Совместимый fallback для Codex CLI.
+  CODEX_API_KEY           Совместимый fallback для codex exec.
+                          Если переменные пусты, переиспользуется ключ из auth.json.
   VIBEMODE_REPLACE_KEY    Установи 1, чтобы заменить сохранённый ключ.
   VIBEMODE_SKIP_API_CHECK Установи 1, чтобы записать файлы без проверки /v1/responses.
   CODEX_HOME              Необязательная папка конфига Codex Desktop. По умолчанию: ~/.codex.
@@ -200,7 +204,7 @@ try:
 except Exception:
     raise SystemExit(0)
 
-for key in ("CODEX_KEY",):
+for key in ("CODEX_KEY", "OPENAI_API_KEY", "CODEX_API_KEY"):
     value = payload.get(key)
     if isinstance(value, str) and value.strip():
         print(value.strip())
@@ -212,7 +216,7 @@ PY
 const fs = require("fs");
 try {
   const payload = JSON.parse(fs.readFileSync(process.env.AUTH_FILE_PATH, "utf8"));
-  for (const key of ["CODEX_KEY"]) {
+  for (const key of ["CODEX_KEY", "OPENAI_API_KEY", "CODEX_API_KEY"]) {
     const value = payload[key];
     if (typeof value === "string" && value.trim()) {
       process.stdout.write(value.trim());
@@ -222,9 +226,13 @@ try {
 } catch (_) {}
 ')"
   elif command -v jq >/dev/null 2>&1; then
-    existing_key="$(jq -r '.CODEX_KEY // empty' "$AUTH_FILE" 2>/dev/null || true)"
+    existing_key="$(jq -r '.CODEX_KEY // .OPENAI_API_KEY // .CODEX_API_KEY // empty' "$AUTH_FILE" 2>/dev/null || true)"
   else
-    existing_key="$(sed -n 's/^[[:space:]]*"CODEX_KEY"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$AUTH_FILE" | head -n 1)"
+    existing_key="$(sed -n \
+      -e 's/^[[:space:]]*"CODEX_KEY"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
+      -e 's/^[[:space:]]*"OPENAI_API_KEY"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
+      -e 's/^[[:space:]]*"CODEX_API_KEY"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
+      "$AUTH_FILE" | head -n 1)"
   fi
 
   existing_key="$(trim_key "$existing_key")"
@@ -398,7 +406,8 @@ write_auth() {
 {
   "auth_mode": "apikey",
   "CODEX_KEY": "$escaped_key",
-  "OPENAI_API_KEY": "$escaped_key"
+  "OPENAI_API_KEY": "$escaped_key",
+  "CODEX_API_KEY": "$escaped_key"
 }
 JSON
   write_if_changed "$AUTH_FILE" "$tmp" 600
@@ -411,7 +420,7 @@ write_desktop_env() {
   local tmp escaped_key
   tmp="$(mktemp "$CODEX_DIR/.env.tmp.XXXXXX")"
   escaped_key="$(json_escape "$API_KEY")"
-  printf 'CODEX_KEY="%s"\nOPENAI_API_KEY="%s"\n' "$escaped_key" "$escaped_key" > "$tmp"
+  printf 'CODEX_KEY="%s"\nOPENAI_API_KEY="%s"\nCODEX_API_KEY="%s"\n' "$escaped_key" "$escaped_key" "$escaped_key" > "$tmp"
   write_if_changed "$DESKTOP_ENV_FILE" "$tmp" 600
 }
 

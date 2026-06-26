@@ -17,6 +17,7 @@ $BaseUrl = "https://api.vibemod.pro/v1"
 $DefaultReasoningEffort = "medium"
 $EnvKey = "CODEX_KEY"
 $OpenAiEnvKey = "OPENAI_API_KEY"
+$CodexApiEnvKey = "CODEX_API_KEY"
 $DefaultImageHelperUrl = "https://raw.githubusercontent.com/OlegGorsky/ng/main/scripts/responses_image.py"
 $ImageHelperSourceCandidate = if ($env:VIBEMODE_IMAGE_HELPER_URL) {
     $env:VIBEMODE_IMAGE_HELPER_URL
@@ -256,7 +257,7 @@ function Read-ExistingApiKey {
         return $null
     }
 
-    foreach ($name in @("CODEX_KEY")) {
+    foreach ($name in @($EnvKey, $OpenAiEnvKey, $CodexApiEnvKey)) {
         $property = $payload.PSObject.Properties[$name]
         if ($property -and $property.Value -is [string] -and $property.Value.Trim()) {
             return $property.Value.Trim()
@@ -292,9 +293,11 @@ function Confirm-FoundApiKey([string]$Label, [string]$Value) {
 }
 
 function Read-ApiKey {
-    $apiKey = $env:CODEX_KEY
-    if ($apiKey -and $apiKey.Trim()) {
-        return Confirm-FoundApiKey "vibemode key найден в переменной окружения" $apiKey
+    foreach ($name in @($EnvKey, $OpenAiEnvKey, $CodexApiEnvKey)) {
+        $apiKey = [Environment]::GetEnvironmentVariable($name)
+        if ($apiKey -and $apiKey.Trim()) {
+            return Confirm-FoundApiKey "vibemode key найден в переменной окружения" $apiKey
+        }
     }
 
     $existingKey = Read-ExistingApiKey
@@ -438,7 +441,7 @@ function Write-Auth([string]$ApiKey) {
 
 function Build-AuthBody([string]$ApiKey) {
     $escapedKey = JsonEscape $ApiKey
-    return "{`n  `"auth_mode`": `"apikey`",`n  `"CODEX_KEY`": `"$escapedKey`",`n  `"OPENAI_API_KEY`": `"$escapedKey`"`n}`n"
+    return "{`n  `"auth_mode`": `"apikey`",`n  `"CODEX_KEY`": `"$escapedKey`",`n  `"OPENAI_API_KEY`": `"$escapedKey`",`n  `"CODEX_API_KEY`": `"$escapedKey`"`n}`n"
 }
 
 function Write-DesktopEnv([string]$ApiKey) {
@@ -448,14 +451,16 @@ function Write-DesktopEnv([string]$ApiKey) {
 
 function Build-DesktopEnvBody([string]$ApiKey) {
     $escapedKey = DotEnvEscape $ApiKey
-    return "CODEX_KEY=`"$escapedKey`"`nOPENAI_API_KEY=`"$escapedKey`"`n"
+    return "CODEX_KEY=`"$escapedKey`"`nOPENAI_API_KEY=`"$escapedKey`"`nCODEX_API_KEY=`"$escapedKey`"`n"
 }
 
 function Set-CodexKeyEnvironment([string]$ApiKey) {
     Set-Item -Path ("Env:" + $EnvKey) -Value $ApiKey
     Set-Item -Path ("Env:" + $OpenAiEnvKey) -Value $ApiKey
+    Set-Item -Path ("Env:" + $CodexApiEnvKey) -Value $ApiKey
     [Environment]::SetEnvironmentVariable($EnvKey, $ApiKey, "User")
     [Environment]::SetEnvironmentVariable($OpenAiEnvKey, $ApiKey, "User")
+    [Environment]::SetEnvironmentVariable($CodexApiEnvKey, $ApiKey, "User")
 }
 
 function Sanitize-Secret([string]$Text, [string]$ApiKey) {
@@ -809,6 +814,37 @@ function Install-CodexCli {
     Add-KnownNodeDirsToPath
     if (-not (Test-CodexCli)) {
         Warn "Codex CLI установлен, но текущая PowerShell-сессия ещё не видит codex. Открой новый терминал или запусти: npx --yes @openai/codex --yolo"
+    }
+}
+
+function Invoke-CodexLogin([string]$ApiKey) {
+    Add-KnownNodeDirsToPath
+    $codex = Get-Command codex.cmd -ErrorAction SilentlyContinue
+    if (-not $codex) {
+        $codex = Get-Command codex -ErrorAction SilentlyContinue
+    }
+    if (-not $codex) {
+        return
+    }
+
+    $previousErrorActionPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = "Continue"
+        $output = $ApiKey | & $codex.Source @("login", "--with-api-key") 2>&1
+    } catch {
+        Warn ("Codex API-key login не прошёл: " + (Sanitize-Secret $_.Exception.Message $ApiKey))
+        return
+    } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+
+    if ($LASTEXITCODE -ne 0) {
+        $details = Sanitize-Secret (($output | Out-String).Trim()) $ApiKey
+        if ($details) {
+            Warn ("Codex API-key login не прошёл: " + $details)
+        } else {
+            Warn "Codex API-key login не прошёл."
+        }
     }
 }
 
@@ -1196,6 +1232,8 @@ Set-CodexKeyEnvironment $apiKey
 Install-ImageHelper
 Install-WslConfig $apiKey
 Install-CodexCli
+Invoke-CodexLogin $apiKey
+Write-Auth $apiKey
 
 if ($SkipApiCheck -or (Test-EnvFlag $env:VIBEMODE_SKIP_API_CHECK)) {
     Log "Проверка /v1/responses пропущена"

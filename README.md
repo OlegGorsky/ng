@@ -7,7 +7,7 @@
 
 Основной способ установки теперь единый CLI через `npm`/`npx`. Старые короткие `curl`/PowerShell команды тоже остаются: они удобны для быстрой настройки без глобальной установки этого CLI.
 
-CLI и скрипты прописывают Vibemode API в Codex config, сохраняют ключ в `auth.json`, настраивают `CODEX_KEY` для Codex CLI, проверяют `/v1/responses` и не печатают API-ключ в терминал.
+CLI и скрипты прописывают Vibemode API в Codex config, сохраняют ключ в `auth.json`, настраивают `CODEX_KEY`, `OPENAI_API_KEY` и `CODEX_API_KEY` для Codex CLI, проверяют `/v1/responses` и не печатают API-ключ в терминал.
 
 ## Быстрый старт через npx
 
@@ -63,7 +63,7 @@ npx --yes vibemode-codex run -- codex --yolo
 npx --yes github:OlegGorsky/ng setup --install-codex
 ```
 
-`vibemode run -- codex --yolo` полезен в Termux: команда подставляет сохранённый `CODEX_KEY` только в запускаемый Codex-процесс, даже если текущая вкладка ещё не перечитала `.profile`.
+`vibemode run -- codex --yolo` полезен в Termux: команда подставляет сохранённый ключ только в запускаемый Codex-процесс, даже если текущая вкладка ещё не перечитала `.profile`.
 
 ## Что выбрать
 
@@ -116,7 +116,7 @@ curl -fsSL https://raw.githubusercontent.com/OlegGorsky/ng/main/i | bash
 3. Если `auth.json` уже есть, можно оставить ключ, заменить его или удалить через `vibemode key remove`.
 4. `config.toml` обновится на Vibemode provider.
 5. Для Codex Desktop запишется приватный `~/.codex/.env`, потому что Desktop читает provider key из окружения.
-6. Для Codex CLI дополнительно запишется `OPENAI_API_KEY` с тем же значением: старые версии CLI требуют это имя в `auth_mode = "apikey"`.
+6. Для Codex CLI дополнительно запишутся `OPENAI_API_KEY` и `CODEX_API_KEY` с тем же значением, а Windows-скрипт выполнит `codex login --with-api-key`.
 7. Ключ проверится через `POST https://api.vibemod.pro/v1/responses`, если проверка не отключена.
 8. По команде `vibemode use openai` конфиг возвращается к стандартному OpenAI provider.
 9. По команде `vibemode remove` удаляются Vibemode key material и shell startup block, а Codex config переключается на OpenAI.
@@ -151,7 +151,8 @@ reasoning_effort = "medium"
 {
   "auth_mode": "apikey",
   "CODEX_KEY": "...",
-  "OPENAI_API_KEY": "..."
+  "OPENAI_API_KEY": "...",
+  "CODEX_API_KEY": "..."
 }
 ```
 
@@ -160,6 +161,7 @@ reasoning_effort = "medium"
 ```dotenv
 CODEX_KEY="..."
 OPENAI_API_KEY="..."
+CODEX_API_KEY="..."
 ```
 
 Пути:
@@ -168,7 +170,7 @@ OPENAI_API_KEY="..."
 - Windows: `%USERPROFILE%\.codex\config.toml`, `%USERPROFILE%\.codex\auth.json` и `%USERPROFILE%\.codex\.env`
 - WSL при запуске Windows-скрипта: `~/.codex/config.toml`, `~/.codex/auth.json` и `~/.codex/.env` внутри default WSL-дистрибутива
 
-В Termux Codex CLI читает provider key из переменных окружения, поэтому скрипт пишет `CODEX_KEY` и `OPENAI_API_KEY` в `~/.codex/vibemode.env` и добавляет его подключение в `~/.profile`, а также в `.bashrc` или `.zshrc`, если они используются. После запуска через `curl ... | bash` текущая вкладка Termux не может автоматически получить переменную из дочернего `bash`; выполни команду, которую скрипт покажет в конце, или открой новую вкладку Termux.
+В Termux Codex CLI читает provider key из переменных окружения, поэтому скрипт пишет `CODEX_KEY`, `OPENAI_API_KEY` и `CODEX_API_KEY` в `~/.codex/vibemode.env` и добавляет его подключение в `~/.profile`, а также в `.bashrc` или `.zshrc`, если они используются. После запуска через `curl ... | bash` текущая вкладка Termux не может автоматически получить переменную из дочернего `bash`; выполни команду, которую скрипт покажет в конце, или открой новую вкладку Termux.
 
 Для WSL используется текущий default user выбранного дистрибутива. Если default user в WSL — `oleg`, путь будет вроде `/home/oleg/.codex`; если default user — `root`, путь будет `/root/.codex`. Скрипт выводит WSL user, `HOME` и итоговый config dir в лог.
 

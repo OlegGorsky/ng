@@ -34,6 +34,7 @@ except ModuleNotFoundError:  # pragma: no cover - Python <3.11 fallback
 DEFAULT_OUTPUT = "output/imagegen/generated-image.png"
 DEFAULT_MODEL = "gpt-5.4"
 CODEX_HOME = pathlib.Path(os.environ.get("CODEX_HOME", pathlib.Path.home() / ".codex")).expanduser()
+AUTH_KEY_NAMES = ("CODEX_KEY", "OPENAI_API_KEY", "CODEX_API_KEY")
 MAX_IMAGE_BYTES = 50 * 1024 * 1024
 SIZE_PRESETS = {
     "square": "1024x1024",
@@ -93,10 +94,10 @@ def load_codex_auth_key(preferred_key: str | None = None) -> str | None:
     except Exception:
         return None
 
-    auth_keys = []
+    auth_keys: list[str] = []
     if preferred_key:
         auth_keys.append(preferred_key)
-    auth_keys.append("CODEX_KEY")
+    auth_keys.extend(AUTH_KEY_NAMES)
 
     for key in dict.fromkeys(auth_keys):
         value = data.get(key)
@@ -153,10 +154,12 @@ def resolve_config() -> Config:
     api_key = (
         (env(provider_env_key) if provider_env_key else None)
         or env("CODEX_KEY")
+        or env("OPENAI_API_KEY")
+        or env("CODEX_API_KEY")
         or load_codex_auth_key(provider_env_key)
     )
     if not api_key:
-        raise ImageGenerationError("CODEX_KEY not found")
+        raise ImageGenerationError("API key not found")
 
     base_url = (
         env("OPENAI_BASE_URL")

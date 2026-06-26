@@ -7,11 +7,13 @@ DEFAULT_MODEL='gpt-5.4'
 DEFAULT_REASONING_EFFORT='medium'
 ENV_KEY='CODEX_KEY'
 OPENAI_ENV_KEY='OPENAI_API_KEY'
+CODEX_API_ENV_KEY='CODEX_API_KEY'
+AUTH_ENV_KEYS=("$ENV_KEY" "$OPENAI_ENV_KEY" "$CODEX_API_ENV_KEY")
 
 NON_INTERACTIVE=0
 REPLACE_KEY="${VIBEMODE_REPLACE_KEY:-0}"
 MODEL="$DEFAULT_MODEL"
-API_KEY="${CODEX_KEY:-}"
+API_KEY="${CODEX_KEY:-${OPENAI_API_KEY:-${CODEX_API_KEY:-}}}"
 
 usage() {
   cat <<USAGE
@@ -28,7 +30,9 @@ Options:
 
 Environment:
   CODEX_KEY             Preferred key variable for Vibemode/Codex.
-                         If unset, an existing CODEX_KEY in auth.json is reused.
+  OPENAI_API_KEY        Compatible fallback for Codex CLI.
+  CODEX_API_KEY         Compatible fallback for codex exec.
+                         If unset, an existing key in auth.json is reused.
   VIBEMODE_REPLACE_KEY  Set to 1 to replace an existing auth.json key.
   CODEX_HOME            Optional Codex config directory. Default: ~/.codex.
 USAGE
@@ -211,7 +215,7 @@ try:
 except Exception:
     raise SystemExit(0)
 
-for key in ("CODEX_KEY",):
+for key in ("CODEX_KEY", "OPENAI_API_KEY", "CODEX_API_KEY"):
     value = payload.get(key)
     if isinstance(value, str) and value.strip():
         print(value.strip())
@@ -223,7 +227,7 @@ PY
 const fs = require("fs");
 try {
   const payload = JSON.parse(fs.readFileSync(process.env.AUTH_FILE_PATH, "utf8"));
-  for (const key of ["CODEX_KEY"]) {
+  for (const key of ["CODEX_KEY", "OPENAI_API_KEY", "CODEX_API_KEY"]) {
     const value = payload[key];
     if (typeof value === "string" && value.trim()) {
       process.stdout.write(value.trim());
@@ -233,10 +237,12 @@ try {
 } catch (_) {}
 ')"
   elif command -v jq >/dev/null 2>&1; then
-    existing_key="$(jq -r '.CODEX_KEY // empty' "$AUTH_FILE" 2>/dev/null || true)"
+    existing_key="$(jq -r '.CODEX_KEY // .OPENAI_API_KEY // .CODEX_API_KEY // empty' "$AUTH_FILE" 2>/dev/null || true)"
   else
     existing_key="$(sed -n \
       -e 's/^[[:space:]]*"CODEX_KEY"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
+      -e 's/^[[:space:]]*"OPENAI_API_KEY"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
+      -e 's/^[[:space:]]*"CODEX_API_KEY"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
       "$AUTH_FILE" | head -n 1)"
   fi
 
@@ -394,7 +400,8 @@ write_auth() {
 {
   "auth_mode": "apikey",
   "CODEX_KEY": "$escaped_key",
-  "OPENAI_API_KEY": "$escaped_key"
+  "OPENAI_API_KEY": "$escaped_key",
+  "CODEX_API_KEY": "$escaped_key"
 }
 JSON
   write_if_changed "$AUTH_FILE" "$tmp" 600
@@ -416,7 +423,7 @@ write_shell_env() {
   local tmp escaped_key
   tmp="$(mktemp "$CODEX_DIR/vibemode.env.tmp.XXXXXX")"
   escaped_key="$(shell_escape "$API_KEY")"
-  printf 'export %s=%s\nexport %s=%s\n' "$ENV_KEY" "$escaped_key" "$OPENAI_ENV_KEY" "$escaped_key" > "$tmp"
+  printf 'export %s=%s\nexport %s=%s\nexport %s=%s\n' "$ENV_KEY" "$escaped_key" "$OPENAI_ENV_KEY" "$escaped_key" "$CODEX_API_ENV_KEY" "$escaped_key" > "$tmp"
   write_if_changed "$SHELL_ENV_FILE" "$tmp" 600
 }
 

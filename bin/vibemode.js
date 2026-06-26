@@ -258,6 +258,7 @@ function buildVibemodeConfig(existing, model) {
   const lines = [
     `model = "${escapedModel}"`,
     `model_provider = "${escapedProvider}"`,
+    `model_reasoning_effort = "${escapedEffort}"`,
     'cli_auth_credentials_store = "file"',
   ];
 
@@ -271,11 +272,6 @@ function buildVibemodeConfig(existing, model) {
     `name = "${escapedProvider}"`,
     `base_url = "${escapedUrl}"`,
     `env_key = "${escapedEnvKey}"`,
-    '',
-    '[profiles.default]',
-    `model = "${escapedModel}"`,
-    `model_provider = "${escapedProvider}"`,
-    `reasoning_effort = "${escapedEffort}"`,
     ''
   );
   return lines.join('\n');
@@ -286,20 +282,14 @@ function buildOpenAIConfig(existing) {
   const lines = [
     `model = "${tomlEscape(OPENAI_MODEL)}"`,
     'model_provider = "openai"',
+    `model_reasoning_effort = "${tomlEscape(DEFAULT_REASONING_EFFORT)}"`,
   ];
 
   if (kept.length) {
     lines.push('', ...kept);
   }
 
-  lines.push(
-    '',
-    '[profiles.default]',
-    `model = "${tomlEscape(OPENAI_MODEL)}"`,
-    'model_provider = "openai"',
-    `reasoning_effort = "${tomlEscape(DEFAULT_REASONING_EFFORT)}"`,
-    ''
-  );
+  lines.push('');
   return lines.join('\n');
 }
 

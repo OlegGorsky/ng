@@ -359,6 +359,7 @@ build_config_body() {
 
   printf 'model = "%s"\n' "$escaped_model"
   printf 'model_provider = "%s"\n' "$escaped_provider"
+  printf 'model_reasoning_effort = "%s"\n' "$escaped_effort"
   printf 'cli_auth_credentials_store = "file"\n'
   printf '\n'
 
@@ -397,10 +398,6 @@ build_config_body() {
   printf 'name = "%s"\n' "$escaped_provider"
   printf 'base_url = "%s"\n' "$escaped_url"
   printf 'env_key = "%s"\n' "$escaped_env_key"
-  printf '\n[profiles.default]\n'
-  printf 'model = "%s"\n' "$escaped_model"
-  printf 'model_provider = "%s"\n' "$escaped_provider"
-  printf 'reasoning_effort = "%s"\n' "$escaped_effort"
 }
 
 write_config() {

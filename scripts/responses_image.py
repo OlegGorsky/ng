@@ -126,19 +126,8 @@ def config_value(data: dict[str, Any], *keys: str) -> str | None:
     return None
 
 
-def default_profile_config(data: dict[str, Any]) -> dict[str, Any]:
-    profiles = data.get("profiles")
-    if not isinstance(profiles, dict):
-        return {}
-    profile = profiles.get("default")
-    return profile if isinstance(profile, dict) else {}
-
-
-def selected_provider_config(data: dict[str, Any], profile_config: dict[str, Any]) -> dict[str, Any]:
-    provider_name = (
-        config_value(profile_config, "model_provider", "provider")
-        or config_value(data, "model_provider", "provider")
-    )
+def selected_provider_config(data: dict[str, Any]) -> dict[str, Any]:
+    provider_name = config_value(data, "model_provider", "provider")
     providers = data.get("model_providers")
     if not provider_name or not isinstance(providers, dict):
         return {}
@@ -148,8 +137,7 @@ def selected_provider_config(data: dict[str, Any], profile_config: dict[str, Any
 
 def resolve_config() -> Config:
     codex_config = load_codex_config()
-    profile_config = default_profile_config(codex_config)
-    provider_config = selected_provider_config(codex_config, profile_config)
+    provider_config = selected_provider_config(codex_config)
     provider_env_key = config_value(provider_config, "env_key")
     api_key = (
         (env(provider_env_key) if provider_env_key else None)
@@ -170,7 +158,6 @@ def resolve_config() -> Config:
     model = (
         env("IMAGE_MODEL")
         or env("OPENAI_MODEL")
-        or config_value(profile_config, "model", "openai_model")
         or config_value(provider_config, "model", "openai_model")
         or config_value(codex_config, "model", "openai_model")
         or DEFAULT_MODEL

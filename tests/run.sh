@@ -67,6 +67,17 @@ assert_not_contains_file() {
   fi
 }
 
+assert_no_line_matching() {
+  local path="$1"
+  local pattern="$2"
+  local label="$3"
+  if grep -Eq -- "$pattern" "$path"; then
+    fail "$label"
+  else
+    pass "$label"
+  fi
+}
+
 assert_count() {
   local path="$1"
   local needle="$2"
@@ -446,8 +457,9 @@ FAKE_CODEX
   assert_contains "$config" '[model_providers.vibemode]' 'npm CLI writes Vibemode provider table'
   assert_contains "$config" 'base_url = "https://api.vibemod.pro/v1"' 'npm CLI writes Vibemode base URL'
   assert_contains "$config" 'env_key = "CODEX_KEY"' 'npm CLI writes Codex env key'
-  assert_contains "$config" '[profiles.default]' 'npm CLI writes default profile'
-  assert_contains "$config" 'reasoning_effort = "medium"' 'npm CLI writes reasoning effort'
+  assert_contains "$config" 'model_reasoning_effort = "medium"' 'npm CLI writes official reasoning effort'
+  assert_not_contains_file "$config" '[profiles.default]' 'npm CLI does not write legacy default profile table'
+  assert_no_line_matching "$config" '^[[:space:]]*reasoning_effort[[:space:]]*=' 'npm CLI does not write legacy profile reasoning key'
   assert_contains "$tmp/home/.codex/auth.json" '"OPENAI_API_KEY": "test-api-key"' 'npm CLI writes official Codex auth key'
   assert_not_contains_file "$tmp/home/.codex/auth.json" '"CODEX_KEY"' 'npm CLI keeps provider env key out of auth.json'
   assert_not_contains_file "$tmp/home/.codex/auth.json" '"CODEX_API_KEY"' 'npm CLI keeps exec env key out of auth.json'
@@ -586,9 +598,9 @@ FAKE_CODEX
   assert_contains "$tmp/home/.codex/config.toml" '[model_providers.vibemode]' 'writes Vibemode provider table'
   assert_contains "$tmp/home/.codex/config.toml" 'base_url = "https://api.vibemod.pro/v1"' 'writes Vibemode base URL'
   assert_contains "$tmp/home/.codex/config.toml" 'env_key = "CODEX_KEY"' 'writes Vibemode env key'
-  assert_contains "$tmp/home/.codex/config.toml" '[profiles.default]' 'writes default profile'
-  assert_contains "$tmp/home/.codex/config.toml" 'reasoning_effort = "medium"' 'writes profile reasoning effort'
-  assert_not_contains_file "$tmp/home/.codex/config.toml" 'model_reasoning_effort' 'does not write legacy root reasoning key'
+  assert_contains "$tmp/home/.codex/config.toml" 'model_reasoning_effort = "medium"' 'writes official reasoning effort'
+  assert_not_contains_file "$tmp/home/.codex/config.toml" '[profiles.default]' 'does not write legacy default profile table'
+  assert_no_line_matching "$tmp/home/.codex/config.toml" '^[[:space:]]*reasoning_effort[[:space:]]*=' 'does not write legacy profile reasoning key'
   assert_not_contains_file "$tmp/home/.codex/config.toml" 'wire_api = "responses"' 'does not write legacy wire_api'
   assert_contains "$tmp/home/.codex/auth.json" '"OPENAI_API_KEY": "test-api-key"' 'writes official Codex auth key'
   assert_not_contains_file "$tmp/home/.codex/auth.json" '"CODEX_KEY"' 'keeps provider env key out of auth.json'
@@ -670,18 +682,18 @@ TOML
   assert_contains "$config" 'approval_policy = "never"' 'preserves unrelated root settings'
   assert_contains "$config" '[profiles.termux]' 'preserves unrelated tables'
   assert_contains "$config" 'sandbox_mode = "workspace-write"' 'preserves unrelated table content'
-  assert_count "$config" 'model = "gpt-5.4"' '2' 'keeps root and profile model keys'
-  assert_count "$config" 'model_provider = "vibemode"' '2' 'keeps root and profile provider keys'
+  assert_count "$config" 'model = "gpt-5.4"' '1' 'keeps one root model key'
+  assert_count "$config" 'model_provider = "vibemode"' '1' 'keeps one root provider key'
   assert_count "$config" '[model_providers.vibemode]' '1' 'keeps one Vibemode provider table'
-  assert_count "$config" '[profiles.default]' '1' 'keeps one default profile'
+  assert_not_contains_file "$config" '[profiles.default]' 'removes legacy default profile table'
   assert_count "$config" 'base_url = "https://api.vibemod.pro/v1"' '1' 'keeps one correct base URL'
   assert_contains "$config" 'env_key = "CODEX_KEY"' 'keeps one env key'
-  assert_contains "$config" 'reasoning_effort = "medium"' 'keeps profile reasoning effort'
+  assert_contains "$config" 'model_reasoning_effort = "medium"' 'keeps official reasoning effort'
   assert_count "$tmp/home/.profile" '# >>> vibemode codex >>>' '1' 'keeps one shell env source block'
   assert_not_contains_file "$config" 'api.neurogate.space' 'removes old NeuroGate URL'
   assert_not_contains_file "$config" 'NeuroGate API' 'removes old NeuroGate provider'
   assert_not_contains_file "$config" 'wire_api' 'removes legacy wire_api'
-  assert_not_contains_file "$config" 'model_reasoning_effort' 'removes legacy root reasoning key'
+  assert_not_contains_file "$config" 'reasoning_effort = "high"' 'removes legacy profile reasoning key'
 
   rm -rf "$tmp"
 }
@@ -1176,11 +1188,12 @@ test_desktop_powershell_static_checks() {
   assert_contains "$DESKTOP_PS" '"login", "--with-api-key"' 'PowerShell setup uses codex login --with-api-key'
   assert_contains "$DESKTOP_PS" '$lines.Add("cli_auth_credentials_store = `"file`"")' 'PowerShell setup forces file credential storage'
   assert_contains "$DESKTOP_PS" '$lines.Add("env_key = `"$escapedEnvKey`"")' 'PowerShell setup writes Vibemode env key'
-  assert_contains "$DESKTOP_PS" '[profiles.default]' 'PowerShell setup writes default profile'
+  assert_contains "$DESKTOP_PS" '$defaultProfileHeader = "[profiles.default]"' 'PowerShell setup removes legacy default profile table'
   assert_contains "$DESKTOP_PS" '$DefaultReasoningEffort = "medium"' 'PowerShell setup defaults profile reasoning effort to medium'
-  assert_contains "$DESKTOP_PS" '$lines.Add("reasoning_effort = `"$escapedEffort`"")' 'PowerShell setup writes profile reasoning effort'
+  assert_contains "$DESKTOP_PS" '$lines.Add("model_reasoning_effort = `"$escapedEffort`"")' 'PowerShell setup writes official reasoning effort'
   assert_not_contains_file "$DESKTOP_PS" 'wire_api = "responses"' 'PowerShell setup does not write legacy wire_api'
-  assert_not_contains_file "$DESKTOP_PS" '$lines.Add("model_reasoning_effort' 'PowerShell setup does not write legacy root reasoning key'
+  assert_not_contains_file "$DESKTOP_PS" '$lines.Add("[profiles.default]")' 'PowerShell setup does not write legacy default profile table'
+  assert_not_contains_file "$DESKTOP_PS" '$lines.Add("reasoning_effort' 'PowerShell setup does not write legacy profile reasoning key'
   assert_contains "$DESKTOP_PS" 'Get-Clipboard' 'PowerShell setup reads clipboard when requested'
   assert_contains "$DESKTOP_PS" '$DefaultImageHelperUrl' 'PowerShell setup has a default image helper URL'
   assert_contains "$DESKTOP_PS" 'Resolve-DownloadSource $ImageHelperSourceCandidate $DefaultImageHelperUrl "VIBEMODE_IMAGE_HELPER_URL"' 'PowerShell setup resolves image helper source before download'
@@ -1390,8 +1403,9 @@ test_desktop_powershell_wsl_embedded_script() {
   assert_contains "$tmp/home/.codex/config.toml" 'base_url = "https://api.vibemod.pro/v1"' 'PowerShell WSL script writes Vibemode base URL'
   assert_contains "$tmp/home/.codex/config.toml" 'cli_auth_credentials_store = "file"' 'PowerShell WSL script forces file credential storage'
   assert_contains "$tmp/home/.codex/config.toml" 'env_key = "CODEX_KEY"' 'PowerShell WSL script writes Vibemode env key'
-  assert_contains "$tmp/home/.codex/config.toml" '[profiles.default]' 'PowerShell WSL script writes default profile'
-  assert_contains "$tmp/home/.codex/config.toml" 'reasoning_effort = "medium"' 'PowerShell WSL script writes profile reasoning effort'
+  assert_contains "$tmp/home/.codex/config.toml" 'model_reasoning_effort = "medium"' 'PowerShell WSL script writes official reasoning effort'
+  assert_not_contains_file "$tmp/home/.codex/config.toml" '[profiles.default]' 'PowerShell WSL script does not write legacy default profile table'
+  assert_no_line_matching "$tmp/home/.codex/config.toml" '^[[:space:]]*reasoning_effort[[:space:]]*=' 'PowerShell WSL script does not write legacy profile reasoning key'
   assert_not_contains_file "$tmp/home/.codex/config.toml" 'wire_api = "responses"' 'PowerShell WSL script does not write legacy wire_api'
   assert_contains "$tmp/home/.codex/auth.json" '"OPENAI_API_KEY": "test-api-key"' 'PowerShell WSL script writes official Codex auth key'
   assert_not_contains_file "$tmp/home/.codex/auth.json" '"CODEX_KEY"' 'PowerShell WSL script keeps provider env key out of auth.json'
@@ -1597,8 +1611,8 @@ sys.modules[spec.name] = module
 spec.loader.exec_module(module)
 config = module.resolve_config()
 assert config.api_key == "existing-test-api-key"
-assert config.base_url == "https://api.vibemod.pro/v1"
-assert config.model == "gpt-5.4"
+assert config.base_url == "https://wrong.example/v1"
+assert config.model == "wrong-root"
 tool = module.build_tool(module.ImageJob(prompt="p", output="out.png", compression="80"))
 assert tool["output_compression"] == 80
 try:

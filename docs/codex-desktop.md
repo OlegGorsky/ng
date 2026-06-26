@@ -62,17 +62,13 @@ $env:VIBEMODE_KEY_FROM_CLIPBOARD='1'; irm "https://raw.githubusercontent.com/Ole
 ```toml
 model = "gpt-5.4"
 model_provider = "vibemode"
+model_reasoning_effort = "medium"
 cli_auth_credentials_store = "file"
 
 [model_providers.vibemode]
 name = "vibemode"
 base_url = "https://api.vibemod.pro/v1"
 env_key = "CODEX_KEY"
-
-[profiles.default]
-model = "gpt-5.4"
-model_provider = "vibemode"
-reasoning_effort = "medium"
 ```
 
 В `auth.json` записывается или сохраняется:

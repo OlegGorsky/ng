@@ -488,6 +488,7 @@ FAKE_CODEX
   fi
   pass 'npm CLI switches back to OpenAI config'
   assert_contains "$config" 'model_provider = "openai"' 'npm CLI writes OpenAI provider'
+  assert_not_contains_file "$config" 'cli_auth_credentials_store' 'npm CLI removes forced file credential storage on OpenAI'
   assert_not_contains_file "$config" 'api.vibemod.pro' 'npm CLI removes Vibemode URL'
   assert_not_contains_file "$config" 'NeuroGate' 'npm CLI removes old NeuroGate provider'
   assert_not_contains_file "$config" 'wire_api' 'npm CLI removes legacy wire_api'

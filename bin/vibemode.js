@@ -286,7 +286,6 @@ function buildOpenAIConfig(existing) {
   const lines = [
     `model = "${tomlEscape(OPENAI_MODEL)}"`,
     'model_provider = "openai"',
-    'cli_auth_credentials_store = "file"',
   ];
 
   if (kept.length) {

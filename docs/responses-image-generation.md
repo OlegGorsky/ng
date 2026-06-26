@@ -7,6 +7,7 @@
 ```toml
 model = "gpt-5.4"
 model_provider = "vibemode"
+cli_auth_credentials_store = "file"
 
 [model_providers.vibemode]
 name = "vibemode"

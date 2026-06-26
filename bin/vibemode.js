@@ -236,7 +236,7 @@ function cleanCodexConfig(existing) {
     if (skipTable) {
       continue;
     }
-    if (inRoot && /^(model|model_provider|model_reasoning_effort)\s*=/.test(line)) {
+    if (inRoot && /^(model|model_provider|model_reasoning_effort|cli_auth_credentials_store)\s*=/.test(line)) {
       continue;
     }
     if (/^wire_api\s*=/.test(line)) {
@@ -258,6 +258,7 @@ function buildVibemodeConfig(existing, model) {
   const lines = [
     `model = "${escapedModel}"`,
     `model_provider = "${escapedProvider}"`,
+    'cli_auth_credentials_store = "file"',
   ];
 
   if (kept.length) {
@@ -285,6 +286,7 @@ function buildOpenAIConfig(existing) {
   const lines = [
     `model = "${tomlEscape(OPENAI_MODEL)}"`,
     'model_provider = "openai"',
+    'cli_auth_credentials_store = "file"',
   ];
 
   if (kept.length) {

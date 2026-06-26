@@ -379,6 +379,7 @@ function Build-ConfigBody {
 
     $lines.Add("model = `"$escapedModel`"")
     $lines.Add("model_provider = `"$escapedProvider`"")
+    $lines.Add("cli_auth_credentials_store = `"file`"")
     $lines.Add("")
 
     if (Test-Path -LiteralPath $ConfigFile) {
@@ -411,6 +412,9 @@ function Build-ConfigBody {
                 continue
             }
             if ($inRoot -and $line -match '^\s*model_reasoning_effort\s*=') {
+                continue
+            }
+            if ($inRoot -and $line -match '^\s*cli_auth_credentials_store\s*=') {
                 continue
             }
 
@@ -1243,6 +1247,7 @@ build_config_body() {
 
   printf 'model = "%s"\n' "$escaped_model"
   printf 'model_provider = "%s"\n' "$escaped_provider"
+  printf 'cli_auth_credentials_store = "file"\n'
   printf '\n'
 
   if [[ -f "$config_file" ]]; then
@@ -1270,6 +1275,7 @@ build_config_body() {
       in_root && /^[[:space:]]*model[[:space:]]*=/ { next }
       in_root && /^[[:space:]]*model_provider[[:space:]]*=/ { next }
       in_root && /^[[:space:]]*model_reasoning_effort[[:space:]]*=/ { next }
+      in_root && /^[[:space:]]*cli_auth_credentials_store[[:space:]]*=/ { next }
       { print }
     ' "$config_file"
     printf '\n'

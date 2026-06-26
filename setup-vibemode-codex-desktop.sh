@@ -351,6 +351,7 @@ build_config_body() {
 
   printf 'model = "%s"\n' "$escaped_model"
   printf 'model_provider = "%s"\n' "$escaped_provider"
+  printf 'cli_auth_credentials_store = "file"\n'
   printf '\n'
 
   if [[ -f "$CONFIG_FILE" ]]; then
@@ -378,6 +379,7 @@ build_config_body() {
       in_root && /^[[:space:]]*model[[:space:]]*=/ { next }
       in_root && /^[[:space:]]*model_provider[[:space:]]*=/ { next }
       in_root && /^[[:space:]]*model_reasoning_effort[[:space:]]*=/ { next }
+      in_root && /^[[:space:]]*cli_auth_credentials_store[[:space:]]*=/ { next }
       { print }
     ' "$CONFIG_FILE"
     printf '\n'

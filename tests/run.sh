@@ -1244,6 +1244,9 @@ test_desktop_powershell_static_checks() {
   assert_contains "$DESKTOP_BOOTSTRAP_PS" 'Refresh-CodexEnvironment' 'PowerShell bootstrap invokes Codex env refresh after setup'
   assert_contains "$DESKTOP_BOOTSTRAP_PS" 'function Repair-CodexApiKeyAuth' 'PowerShell bootstrap can repair stale Codex API-key auth'
   assert_contains "$DESKTOP_BOOTSTRAP_PS" '$payload.PSObject.Properties["CODEX_KEY"]' 'PowerShell bootstrap can read stale CODEX_KEY auth'
+  assert_contains "$DESKTOP_BOOTSTRAP_PS" 'Get-Clipboard -ErrorAction Stop' 'PowerShell bootstrap repair can read clipboard API key'
+  assert_contains "$DESKTOP_BOOTSTRAP_PS" 'foreach ($name in @("CODEX_KEY", "OPENAI_API_KEY", "CODEX_API_KEY"))' 'PowerShell bootstrap repair targets all API key env names'
+  assert_contains "$DESKTOP_BOOTSTRAP_PS" '[Environment]::SetEnvironmentVariable($name, $apiKey, "User")' 'PowerShell bootstrap repair persists API key env'
   assert_contains "$DESKTOP_BOOTSTRAP_PS" 'Repair-CodexApiKeyAuth' 'PowerShell bootstrap invokes stale Codex auth repair'
   if awk '
     /^\} finally \{/ { in_finally = 1 }

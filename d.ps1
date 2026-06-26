@@ -39,11 +39,46 @@ function Refresh-CodexEnvironment {
     }
 }
 
+function Test-EnvFlag([string]$Value) {
+    if (-not $Value) {
+        return $false
+    }
+    return $Value -match '^(1|true|yes|y|on)$'
+}
+
 function JsonEscape([string]$Value) {
     if ($null -eq $Value) {
         return ""
     }
     return $Value.Replace('\', '\\').Replace('"', '\"').Replace("`r", "").Replace("`n", "")
+}
+
+function Get-ClipboardRepairApiKey {
+    if (-not (Test-EnvFlag $env:VIBEMODE_KEY_FROM_CLIPBOARD)) {
+        return $null
+    }
+
+    try {
+        $value = (Get-Clipboard -ErrorAction Stop) -join [Environment]::NewLine
+    } catch {
+        return $null
+    }
+
+    if ($value -and $value.Trim()) {
+        return $value.Trim()
+    }
+    return $null
+}
+
+function Set-CodexRepairKeyEnvironment([string]$apiKey) {
+    if (-not $apiKey) {
+        return
+    }
+
+    foreach ($name in @("CODEX_KEY", "OPENAI_API_KEY", "CODEX_API_KEY")) {
+        Set-Item -Path ("Env:" + $name) -Value $apiKey
+        [Environment]::SetEnvironmentVariable($name, $apiKey, "User")
+    }
 }
 
 function Get-CodexRepairDirs {
@@ -68,11 +103,12 @@ function Get-CodexRepairDirs {
 }
 
 function Repair-CodexApiKeyAuth {
+    $clipboardApiKey = Get-ClipboardRepairApiKey
     foreach ($dir in Get-CodexRepairDirs) {
         $authFile = Join-Path $dir "auth.json"
-        $apiKey = $null
+        $apiKey = $clipboardApiKey
 
-        if (Test-Path -LiteralPath $authFile) {
+        if (-not $apiKey -and (Test-Path -LiteralPath $authFile)) {
             try {
                 $payload = Get-Content -LiteralPath $authFile -Raw | ConvertFrom-Json
                 $openAiProperty = $payload.PSObject.Properties["OPENAI_API_KEY"]
@@ -107,6 +143,7 @@ function Repair-CodexApiKeyAuth {
             continue
         }
 
+        Set-CodexRepairKeyEnvironment $apiKey
         New-Item -ItemType Directory -Force -Path $dir | Out-Null
         $escapedKey = JsonEscape $apiKey
         $body = "{`n  `"auth_mode`": `"apikey`",`n  `"OPENAI_API_KEY`": `"$escapedKey`"`n}`n"

@@ -52,7 +52,7 @@ Codex CLI ставится через npm. Если npm нет, Windows setup п
 Если парольный prompt плохо принимает вставку, скопируй ключ в буфер обмена и запусти:
 
 ```powershell
-$env:VIBEMODE_KEY_FROM_CLIPBOARD='1'; irm https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1 | iex; Remove-Item Env:\VIBEMODE_KEY_FROM_CLIPBOARD
+$env:VIBEMODE_KEY_FROM_CLIPBOARD='1'; irm "https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1?$(Get-Random)" | iex; Remove-Item Env:\VIBEMODE_KEY_FROM_CLIPBOARD -ErrorAction SilentlyContinue
 ```
 
 ## Что меняется
@@ -96,13 +96,13 @@ CODEX_API_KEY="..."
 Если проверка `/v1/responses` вернула `HTTP 401`, настройки уже сохранены. Это обычно означает, что API-ключ не принят сервером. Для принудительной замены ключа в Windows скопируй новый ключ в буфер и запусти:
 
 ```powershell
-$env:VIBEMODE_REPLACE_KEY='1'; $env:VIBEMODE_KEY_FROM_CLIPBOARD='1'; irm https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1 | iex; Remove-Item Env:\VIBEMODE_REPLACE_KEY; Remove-Item Env:\VIBEMODE_KEY_FROM_CLIPBOARD
+$env:VIBEMODE_REPLACE_KEY='1'; $env:VIBEMODE_KEY_FROM_CLIPBOARD='1'; irm "https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1?$(Get-Random)" | iex; Remove-Item Env:\VIBEMODE_REPLACE_KEY, Env:\VIBEMODE_KEY_FROM_CLIPBOARD -ErrorAction SilentlyContinue
 ```
 
 Для повторной записи без проверки можно запустить скрипт с `-SkipApiCheck`, но для реальной работы Codex ключ всё равно должен проходить авторизацию. Для короткой Windows-команды:
 
 ```powershell
-$env:VIBEMODE_SKIP_API_CHECK='1'; irm https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1 | iex; Remove-Item Env:\VIBEMODE_SKIP_API_CHECK
+$env:VIBEMODE_SKIP_API_CHECK='1'; irm "https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1?$(Get-Random)" | iex; Remove-Item Env:\VIBEMODE_SKIP_API_CHECK -ErrorAction SilentlyContinue
 ```
 
 ## Окно авторизации Codex Desktop

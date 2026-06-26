@@ -811,6 +811,34 @@ JSON
   rm -rf "$tmp"
 }
 
+test_desktop_setup_can_replace_existing_auth_key_from_pipe() {
+  local tmp auth output
+  tmp="$(mktemp -d)"
+  auth="$tmp/home/.codex/auth.json"
+  mkdir -p "$(dirname "$auth")"
+  cat > "$auth" <<'JSON'
+{
+  "auth_mode": "apikey",
+  "CODEX_KEY": "old-test-api-key"
+}
+JSON
+
+  if output="$(printf 'new-test-api-key\n' | env -u CODEX_KEY -u OPENAI_API_KEY -u CODEX_API_KEY HOME="$tmp/home" CODEX_HOME="$tmp/home/.codex" \
+    bash "$DESKTOP_SCRIPT" --skip-api-check --no-image-helper --replace-key 2>&1)"; then
+    pass 'desktop setup can replace existing auth.json key from pipe'
+  else
+    printf '%s\n' "$output" >&2
+    fail 'desktop setup can replace existing auth.json key from pipe'
+    rm -rf "$tmp"
+    return
+  fi
+
+  assert_contains "$auth" '"OPENAI_API_KEY": "new-test-api-key"' 'desktop pipe replacement writes official Codex auth key'
+  assert_not_contains_file "$auth" '"CODEX_KEY"' 'desktop pipe replacement removes old provider auth key'
+
+  rm -rf "$tmp"
+}
+
 test_desktop_setup_can_replace_env_key_interactively() {
   local tmp auth output
   if ! command -v script >/dev/null 2>&1; then
@@ -1016,13 +1044,17 @@ test_desktop_powershell_static_checks() {
   assert_contains "$DESKTOP_PS" '$CodexApiEnvKey = "CODEX_API_KEY"' 'PowerShell setup defines Codex API env key'
   assert_contains "$DESKTOP_PS" '$DesktopEnvFile = Join-Path $CodexDir ".env"' 'PowerShell setup targets Codex Desktop env file'
   assert_contains "$DESKTOP_PS" 'Write-DesktopEnv $apiKey' 'PowerShell setup writes Codex Desktop env file'
+  assert_contains "$DESKTOP_PS" 'Set-Item -Path "Env:CODEX_HOME" -Value $CodexDir' 'PowerShell setup sets CODEX_HOME for current CLI session'
   assert_contains "$DESKTOP_PS" 'Set-Item -Path ("Env:" + $EnvKey) -Value $ApiKey' 'PowerShell setup sets CODEX_KEY for current CLI session'
   assert_contains "$DESKTOP_PS" 'Set-Item -Path ("Env:" + $OpenAiEnvKey) -Value $ApiKey' 'PowerShell setup sets OPENAI_API_KEY for current CLI session'
   assert_contains "$DESKTOP_PS" 'Set-Item -Path ("Env:" + $CodexApiEnvKey) -Value $ApiKey' 'PowerShell setup sets CODEX_API_KEY for current CLI session'
+  assert_contains "$DESKTOP_PS" '[Environment]::SetEnvironmentVariable("CODEX_HOME", $CodexDir, "User")' 'PowerShell setup persists CODEX_HOME for new CLI sessions'
   assert_contains "$DESKTOP_PS" '[Environment]::SetEnvironmentVariable($EnvKey, $ApiKey, "User")' 'PowerShell setup persists CODEX_KEY for new CLI sessions'
   assert_contains "$DESKTOP_PS" '[Environment]::SetEnvironmentVariable($OpenAiEnvKey, $ApiKey, "User")' 'PowerShell setup persists OPENAI_API_KEY for new CLI sessions'
   assert_contains "$DESKTOP_PS" '[Environment]::SetEnvironmentVariable($CodexApiEnvKey, $ApiKey, "User")' 'PowerShell setup persists CODEX_API_KEY for new CLI sessions'
   assert_contains "$DESKTOP_PS" 'Set-CodexKeyEnvironment $apiKey' 'PowerShell setup applies CLI env key'
+  assert_contains "$DESKTOP_PS" 'Assert-AuthReady' 'PowerShell setup verifies Codex auth after final write'
+  assert_contains "$DESKTOP_PS" 'Codex auth.json не содержит OPENAI_API_KEY' 'PowerShell setup explains broken Codex auth format'
   assert_contains "$DESKTOP_PS" 'Invoke-CodexLogin $apiKey' 'PowerShell setup runs official Codex API-key login'
   assert_contains "$DESKTOP_PS" '"login", "--with-api-key"' 'PowerShell setup uses codex login --with-api-key'
   assert_contains "$DESKTOP_PS" '$lines.Add("env_key = `"$escapedEnvKey`"")' 'PowerShell setup writes Vibemode env key'
@@ -1507,6 +1539,36 @@ JSON
   rm -rf "$tmp"
 }
 
+test_termux_setup_can_replace_existing_auth_key_from_pipe() {
+  local tmp auth output bin
+  tmp="$(mktemp -d)"
+  bin="$tmp/bin"
+  auth="$tmp/home/.codex/auth.json"
+  mkdir -p "$bin" "$(dirname "$auth")"
+  make_fake_curl "$bin"
+  cat > "$auth" <<'JSON'
+{
+  "auth_mode": "apikey",
+  "CODEX_KEY": "old-test-api-key"
+}
+JSON
+
+  if output="$(printf 'new-test-api-key\n' | env -u CODEX_KEY -u OPENAI_API_KEY -u CODEX_API_KEY HOME="$tmp/home" CODEX_HOME="$tmp/home/.codex" PATH="$bin:$PATH" \
+    bash "$SCRIPT" --model gpt-5 --replace-key 2>&1)"; then
+    pass 'Termux setup can replace existing auth.json key from pipe'
+  else
+    printf '%s\n' "$output" >&2
+    fail 'Termux setup can replace existing auth.json key from pipe'
+    rm -rf "$tmp"
+    return
+  fi
+
+  assert_contains "$auth" '"OPENAI_API_KEY": "new-test-api-key"' 'Termux pipe replacement writes official Codex auth key'
+  assert_not_contains_file "$auth" '"CODEX_KEY"' 'Termux pipe replacement removes old provider auth key'
+
+  rm -rf "$tmp"
+}
+
 test_termux_setup_masks_direct_key_paste_over_existing_auth() {
   local tmp auth output bin
   if ! command -v script >/dev/null 2>&1; then
@@ -1614,6 +1676,7 @@ test_reuses_existing_auth_key_without_python
 test_desktop_setup_creates_config_and_image_helper
 test_desktop_setup_reuses_existing_auth_key
 test_desktop_setup_can_replace_existing_auth_key
+test_desktop_setup_can_replace_existing_auth_key_from_pipe
 test_desktop_setup_can_replace_env_key_interactively
 test_desktop_setup_masks_direct_key_paste_over_existing_auth
 test_desktop_api_check_reports_safe_details
@@ -1630,6 +1693,7 @@ test_npm_cli_setup_status_openai_and_run
 test_desktop_interactive_prompt_reads_from_tty
 test_requires_key_when_non_interactive
 test_termux_setup_can_replace_existing_auth_key
+test_termux_setup_can_replace_existing_auth_key_from_pipe
 test_termux_setup_masks_direct_key_paste_over_existing_auth
 test_termux_api_check_reports_safe_details
 test_bootstrap_downloads_and_runs_setup

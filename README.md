@@ -90,7 +90,7 @@ curl -fsSL https://raw.githubusercontent.com/OlegGorsky/ng/main/d | bash
 Для Codex Desktop на Windows открой PowerShell:
 
 ```powershell
-irm https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1 | iex
+irm "https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1?$(Get-Random)" | iex
 ```
 
 Windows-команда также попробует поставить Codex CLI: сначала через npm, а если npm не найден — через Node.js LTS через `winget` или официальный zip с `nodejs.org`.
@@ -177,19 +177,19 @@ CODEX_API_KEY="..."
 Если проверка `/v1/responses` вернула `HTTP 401`, настройки уже сохранены. Это почти всегда означает, что сервер не принял сохранённый API-ключ. Для принудительной замены ключа в Windows скопируй новый ключ в буфер и запусти:
 
 ```powershell
-$env:VIBEMODE_REPLACE_KEY='1'; $env:VIBEMODE_KEY_FROM_CLIPBOARD='1'; irm https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1 | iex; Remove-Item Env:\VIBEMODE_REPLACE_KEY; Remove-Item Env:\VIBEMODE_KEY_FROM_CLIPBOARD
+$env:VIBEMODE_REPLACE_KEY='1'; $env:VIBEMODE_KEY_FROM_CLIPBOARD='1'; irm "https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1?$(Get-Random)" | iex; Remove-Item Env:\VIBEMODE_REPLACE_KEY, Env:\VIBEMODE_KEY_FROM_CLIPBOARD -ErrorAction SilentlyContinue
 ```
 
 Повторить запись без контрольного запроса можно опцией `-SkipApiCheck` на Windows или `--skip-api-check` на Linux/macOS/Termux. Для короткой Windows-команды:
 
 ```powershell
-$env:VIBEMODE_SKIP_API_CHECK='1'; irm https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1 | iex; Remove-Item Env:\VIBEMODE_SKIP_API_CHECK
+$env:VIBEMODE_SKIP_API_CHECK='1'; irm "https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1?$(Get-Random)" | iex; Remove-Item Env:\VIBEMODE_SKIP_API_CHECK -ErrorAction SilentlyContinue
 ```
 
 При вставке в prompt ключ не показывается, но по количеству `*` видно, сколько символов считалось. Если в Windows вставка всё равно работает криво, скопируй ключ в буфер обмена и запусти:
 
 ```powershell
-$env:VIBEMODE_KEY_FROM_CLIPBOARD='1'; irm https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1 | iex; Remove-Item Env:\VIBEMODE_KEY_FROM_CLIPBOARD
+$env:VIBEMODE_KEY_FROM_CLIPBOARD='1'; irm "https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1?$(Get-Random)" | iex; Remove-Item Env:\VIBEMODE_KEY_FROM_CLIPBOARD -ErrorAction SilentlyContinue
 ```
 
 ## Важно про окно авторизации Codex Desktop

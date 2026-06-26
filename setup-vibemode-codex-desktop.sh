@@ -141,9 +141,17 @@ is_truthy() {
   esac
 }
 
+tty_input_available() {
+  [[ -r /dev/tty ]] && { : </dev/tty; } 2>/dev/null
+}
+
+tty_output_available() {
+  [[ -w /dev/tty ]] && { : >/dev/tty; } 2>/dev/null
+}
+
 read_line() {
   local __var="$1"
-  if [[ -r /dev/tty ]]; then
+  if tty_input_available; then
     IFS= read -r "$__var" </dev/tty
   else
     IFS= read -r "$__var"
@@ -155,10 +163,10 @@ read_secret() {
   local input='' char='' input_path output_path old_stty=''
   input_path='/dev/stdin'
   output_path='/dev/stderr'
-  if [[ -r /dev/tty ]]; then
+  if tty_input_available; then
     input_path='/dev/tty'
   fi
-  if [[ -w /dev/tty ]]; then
+  if tty_output_available; then
     output_path='/dev/tty'
   fi
 

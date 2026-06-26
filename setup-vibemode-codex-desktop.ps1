@@ -455,12 +455,28 @@ function Build-DesktopEnvBody([string]$ApiKey) {
 }
 
 function Set-CodexKeyEnvironment([string]$ApiKey) {
+    Set-Item -Path "Env:CODEX_HOME" -Value $CodexDir
     Set-Item -Path ("Env:" + $EnvKey) -Value $ApiKey
     Set-Item -Path ("Env:" + $OpenAiEnvKey) -Value $ApiKey
     Set-Item -Path ("Env:" + $CodexApiEnvKey) -Value $ApiKey
+    [Environment]::SetEnvironmentVariable("CODEX_HOME", $CodexDir, "User")
     [Environment]::SetEnvironmentVariable($EnvKey, $ApiKey, "User")
     [Environment]::SetEnvironmentVariable($OpenAiEnvKey, $ApiKey, "User")
     [Environment]::SetEnvironmentVariable($CodexApiEnvKey, $ApiKey, "User")
+}
+
+function Assert-AuthReady {
+    try {
+        $payload = Get-Content -LiteralPath $AuthFile -Raw | ConvertFrom-Json
+    } catch {
+        Die ("Codex auth.json не читается: " + $AuthFile)
+    }
+
+    $property = $payload.PSObject.Properties[$OpenAiEnvKey]
+    if (-not $property -or -not ($property.Value -is [string]) -or -not $property.Value.Trim()) {
+        Die ("Codex auth.json не содержит OPENAI_API_KEY: " + $AuthFile)
+    }
+    Log ("Codex auth готов: " + $AuthFile)
 }
 
 function Sanitize-Secret([string]$Text, [string]$ApiKey) {
@@ -538,7 +554,7 @@ function Format-ApiCheckError($ErrorRecord, [string]$ApiKey) {
     }
 
     $suffix = if ($details.Count) { " Details: $($details -join ' | ')" } else { "" }
-    $hint = " Подсказка: HTTP 401 обычно означает, что API-ключ не принят. Для замены ключа положи новый ключ в буфер и запусти: `$env:VIBEMODE_REPLACE_KEY='1'; `$env:VIBEMODE_KEY_FROM_CLIPBOARD='1'; irm https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1 | iex; Remove-Item Env:\VIBEMODE_REPLACE_KEY; Remove-Item Env:\VIBEMODE_KEY_FROM_CLIPBOARD. Чтобы только записать файлы без проверки: `$env:VIBEMODE_SKIP_API_CHECK='1'; irm https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1 | iex; Remove-Item Env:\VIBEMODE_SKIP_API_CHECK."
+    $hint = " Подсказка: HTTP 401 обычно означает, что API-ключ не принят. Для замены ключа положи новый ключ в буфер и запусти: `$env:VIBEMODE_REPLACE_KEY='1'; `$env:VIBEMODE_KEY_FROM_CLIPBOARD='1'; irm `"https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1?`$(Get-Random)`" | iex; Remove-Item Env:\VIBEMODE_REPLACE_KEY, Env:\VIBEMODE_KEY_FROM_CLIPBOARD -ErrorAction SilentlyContinue. Чтобы только записать файлы без проверки: `$env:VIBEMODE_SKIP_API_CHECK='1'; irm `"https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1?`$(Get-Random)`" | iex; Remove-Item Env:\VIBEMODE_SKIP_API_CHECK -ErrorAction SilentlyContinue."
     return ("Не удалось проверить /v1/responses. Настройки записаны, но контрольный запрос к API не прошёл. Установка продолжит работу." + $suffix + $hint)
 }
 
@@ -1234,6 +1250,7 @@ Install-WslConfig $apiKey
 Install-CodexCli
 Invoke-CodexLogin $apiKey
 Write-Auth $apiKey
+Assert-AuthReady
 
 if ($SkipApiCheck -or (Test-EnvFlag $env:VIBEMODE_SKIP_API_CHECK)) {
     Log "Проверка /v1/responses пропущена"

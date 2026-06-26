@@ -33,6 +33,9 @@ function Refresh-PathFromEnvironment {
 function Refresh-CodexEnvironment {
     foreach ($name in @("CODEX_HOME", "CODEX_KEY", "OPENAI_API_KEY", "CODEX_API_KEY")) {
         $value = [Environment]::GetEnvironmentVariable($name, "User")
+        if ($null -eq $value) {
+            $value = [Environment]::GetEnvironmentVariable($name, "Machine")
+        }
         if ($null -ne $value) {
             Set-Item -Path ("Env:" + $name) -Value $value
         }
@@ -51,6 +54,14 @@ function JsonEscape([string]$Value) {
         return ""
     }
     return $Value.Replace('\', '\\').Replace('"', '\"').Replace("`r", "").Replace("`n", "")
+}
+
+function TomlEscape([string]$Value) {
+    return JsonEscape $Value
+}
+
+function DotEnvEscape([string]$Value) {
+    return JsonEscape $Value
 }
 
 function Get-ClipboardRepairApiKey {
@@ -84,7 +95,14 @@ function Set-CodexRepairKeyEnvironment([string]$apiKey) {
 function Get-CodexRepairDirs {
     $dirs = New-Object System.Collections.Generic.List[string]
     $seen = @{}
-    foreach ($dir in @($env:CODEX_HOME, [Environment]::GetEnvironmentVariable("CODEX_HOME", "User"), (Join-Path $HOME ".codex"))) {
+    $defaultUserProfileDir = if ($env:USERPROFILE) { Join-Path $env:USERPROFILE ".codex" } else { $null }
+    foreach ($dir in @(
+        $env:CODEX_HOME,
+        [Environment]::GetEnvironmentVariable("CODEX_HOME", "User"),
+        [Environment]::GetEnvironmentVariable("CODEX_HOME", "Machine"),
+        (Join-Path $HOME ".codex"),
+        $defaultUserProfileDir
+    )) {
         if (-not $dir) {
             continue
         }
@@ -102,6 +120,87 @@ function Get-CodexRepairDirs {
     return $dirs
 }
 
+function Build-CodexRepairConfigBody([string]$ConfigFile) {
+    $providerName = "vibemode"
+    $escapedModel = TomlEscape "gpt-5.4"
+    $escapedProvider = TomlEscape $providerName
+    $escapedUrl = TomlEscape "https://api.vibemod.pro/v1"
+    $escapedEffort = TomlEscape "medium"
+    $escapedEnvKey = TomlEscape "CODEX_KEY"
+    $lines = New-Object System.Collections.Generic.List[string]
+
+    $lines.Add("model = `"$escapedModel`"")
+    $lines.Add("model_provider = `"$escapedProvider`"")
+    $lines.Add("model_reasoning_effort = `"$escapedEffort`"")
+    $lines.Add("cli_auth_credentials_store = `"file`"")
+    $lines.Add("")
+
+    if (Test-Path -LiteralPath $ConfigFile) {
+        $inRoot = $true
+        $skipTable = $false
+        foreach ($line in [System.IO.File]::ReadAllLines($ConfigFile)) {
+            $trimmed = $line.Trim()
+            if ($trimmed -match '^\[') {
+                $inRoot = $false
+                $skipTable = @(
+                    "[model_providers.$providerName]",
+                    "[model_providers.`"$providerName`"]",
+                    '[model_providers."NeuroGate API"]',
+                    '[model_providers.NeuroGate API]',
+                    "[profiles.default]"
+                ) -contains $trimmed
+                if ($skipTable) {
+                    continue
+                }
+            }
+
+            if ($skipTable) {
+                continue
+            }
+            if ($inRoot -and $line -match '^\s*(model|model_provider|model_reasoning_effort|cli_auth_credentials_store)\s*=') {
+                continue
+            }
+            if ($line -match '^\s*wire_api\s*=') {
+                continue
+            }
+            $lines.Add($line)
+        }
+        $lines.Add("")
+    }
+
+    $lines.Add("")
+    $lines.Add("[model_providers.$escapedProvider]")
+    $lines.Add("name = `"$escapedProvider`"")
+    $lines.Add("base_url = `"$escapedUrl`"")
+    $lines.Add("env_key = `"$escapedEnvKey`"")
+
+    return ($lines -join [Environment]::NewLine) + [Environment]::NewLine
+}
+
+function Write-CodexRepairText([string]$Path, [string]$Body) {
+    $utf8 = New-Object System.Text.UTF8Encoding -ArgumentList $false
+    [System.IO.File]::WriteAllText($Path, $Body, $utf8)
+}
+
+function Write-CodexRepairConfig([string]$Dir) {
+    $configFile = Join-Path $Dir "config.toml"
+    Write-CodexRepairText $configFile (Build-CodexRepairConfigBody $configFile)
+}
+
+function Write-CodexRepairAuth([string]$Dir, [string]$ApiKey) {
+    $authFile = Join-Path $Dir "auth.json"
+    $escapedKey = JsonEscape $ApiKey
+    $body = "{`n  `"auth_mode`": `"apikey`",`n  `"OPENAI_API_KEY`": `"$escapedKey`"`n}`n"
+    Write-CodexRepairText $authFile $body
+}
+
+function Write-CodexRepairDesktopEnv([string]$Dir, [string]$ApiKey) {
+    $envFile = Join-Path $Dir ".env"
+    $escapedKey = DotEnvEscape $ApiKey
+    $body = "CODEX_KEY=`"$escapedKey`"`nOPENAI_API_KEY=`"$escapedKey`"`nCODEX_API_KEY=`"$escapedKey`"`n"
+    Write-CodexRepairText $envFile $body
+}
+
 function Repair-CodexApiKeyAuth {
     $clipboardApiKey = Get-ClipboardRepairApiKey
     foreach ($dir in Get-CodexRepairDirs) {
@@ -113,17 +212,17 @@ function Repair-CodexApiKeyAuth {
                 $payload = Get-Content -LiteralPath $authFile -Raw | ConvertFrom-Json
                 $openAiProperty = $payload.PSObject.Properties["OPENAI_API_KEY"]
                 if ($openAiProperty -and $openAiProperty.Value -is [string] -and $openAiProperty.Value.Trim()) {
-                    continue
-                }
-
-                $staleProperty = $payload.PSObject.Properties["CODEX_KEY"]
-                if ($staleProperty -and $staleProperty.Value -is [string] -and $staleProperty.Value.Trim()) {
-                    $apiKey = $staleProperty.Value.Trim()
-                }
-                if (-not $apiKey) {
-                    $codexApiProperty = $payload.PSObject.Properties["CODEX_API_KEY"]
-                    if ($codexApiProperty -and $codexApiProperty.Value -is [string] -and $codexApiProperty.Value.Trim()) {
-                        $apiKey = $codexApiProperty.Value.Trim()
+                    $apiKey = $openAiProperty.Value.Trim()
+                } else {
+                    $staleProperty = $payload.PSObject.Properties["CODEX_KEY"]
+                    if ($staleProperty -and $staleProperty.Value -is [string] -and $staleProperty.Value.Trim()) {
+                        $apiKey = $staleProperty.Value.Trim()
+                    }
+                    if (-not $apiKey) {
+                        $codexApiProperty = $payload.PSObject.Properties["CODEX_API_KEY"]
+                        if ($codexApiProperty -and $codexApiProperty.Value -is [string] -and $codexApiProperty.Value.Trim()) {
+                            $apiKey = $codexApiProperty.Value.Trim()
+                        }
                     }
                 }
             } catch {
@@ -145,10 +244,41 @@ function Repair-CodexApiKeyAuth {
 
         Set-CodexRepairKeyEnvironment $apiKey
         New-Item -ItemType Directory -Force -Path $dir | Out-Null
-        $escapedKey = JsonEscape $apiKey
-        $body = "{`n  `"auth_mode`": `"apikey`",`n  `"OPENAI_API_KEY`": `"$escapedKey`"`n}`n"
-        $utf8 = New-Object System.Text.UTF8Encoding -ArgumentList $false
-        [System.IO.File]::WriteAllText($authFile, $body, $utf8)
+        Write-CodexRepairConfig $dir
+        Write-CodexRepairAuth $dir $apiKey
+        Write-CodexRepairDesktopEnv $dir $apiKey
+    }
+}
+
+function Get-CodexRepairCommand {
+    Add-KnownCommandDirsToPath
+    $codex = Get-Command codex.cmd -ErrorAction SilentlyContinue
+    if (-not $codex) {
+        $codex = Get-Command codex -ErrorAction SilentlyContinue
+    }
+    return $codex
+}
+
+function Test-CodexRepairSmoke {
+    $codex = Get-CodexRepairCommand
+    if (-not $codex) {
+        return
+    }
+
+    $previousErrorActionPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = "Continue"
+        $output = "" | & $codex.Source 2>&1
+    } catch {
+        $output = @($_.Exception.Message)
+    } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+
+    $details = (($output | Out-String).Trim())
+    if ($details -match 'API key auth is missing a key') {
+        $activeHome = if ($env:CODEX_HOME) { $env:CODEX_HOME } else { Join-Path $HOME ".codex" }
+        Write-Warning ("Codex CLI still reads broken API-key auth. CODEX_HOME=" + $activeHome + "; check " + (Join-Path $activeHome "config.toml") + " and " + (Join-Path $activeHome "auth.json"))
     }
 }
 
@@ -307,7 +437,9 @@ try {
 } finally {
     Refresh-CodexEnvironment
     Repair-CodexApiKeyAuth
+    Refresh-CodexEnvironment
     Refresh-PathFromEnvironment
     Add-KnownCommandDirsToPath
+    Test-CodexRepairSmoke
     Remove-Item -Force $tmp -ErrorAction SilentlyContinue
 }

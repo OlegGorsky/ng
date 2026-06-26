@@ -1271,10 +1271,17 @@ test_desktop_powershell_static_checks() {
   assert_contains "$DESKTOP_BOOTSTRAP_PS" '"CODEX_HOME", "CODEX_KEY", "OPENAI_API_KEY", "CODEX_API_KEY"' 'PowerShell bootstrap refreshes Codex auth env names'
   assert_contains "$DESKTOP_BOOTSTRAP_PS" 'Refresh-CodexEnvironment' 'PowerShell bootstrap invokes Codex env refresh after setup'
   assert_contains "$DESKTOP_BOOTSTRAP_PS" 'function Repair-CodexApiKeyAuth' 'PowerShell bootstrap can repair stale Codex API-key auth'
+  assert_contains "$DESKTOP_BOOTSTRAP_PS" '[Environment]::GetEnvironmentVariable("CODEX_HOME", "Machine")' 'PowerShell bootstrap considers Machine CODEX_HOME'
   assert_contains "$DESKTOP_BOOTSTRAP_PS" '$payload.PSObject.Properties["CODEX_KEY"]' 'PowerShell bootstrap can read stale CODEX_KEY auth'
   assert_contains "$DESKTOP_BOOTSTRAP_PS" 'Get-Clipboard -ErrorAction Stop' 'PowerShell bootstrap repair can read clipboard API key'
   assert_contains "$DESKTOP_BOOTSTRAP_PS" 'foreach ($name in @("CODEX_KEY", "OPENAI_API_KEY", "CODEX_API_KEY"))' 'PowerShell bootstrap repair targets all API key env names'
   assert_contains "$DESKTOP_BOOTSTRAP_PS" '[Environment]::SetEnvironmentVariable($name, $apiKey, "User")' 'PowerShell bootstrap repair persists API key env'
+  assert_contains "$DESKTOP_BOOTSTRAP_PS" 'function Write-CodexRepairConfig' 'PowerShell bootstrap can repair stale Codex config'
+  assert_contains "$DESKTOP_BOOTSTRAP_PS" 'model_provider = `"$escapedProvider`"' 'PowerShell bootstrap repair switches provider to Vibemode'
+  assert_contains "$DESKTOP_BOOTSTRAP_PS" 'base_url = `"$escapedUrl`"' 'PowerShell bootstrap repair writes Vibemode base URL'
+  assert_contains "$DESKTOP_BOOTSTRAP_PS" 'function Write-CodexRepairDesktopEnv' 'PowerShell bootstrap can repair Desktop env file'
+  assert_contains "$DESKTOP_BOOTSTRAP_PS" 'function Test-CodexRepairSmoke' 'PowerShell bootstrap smoke-checks current Codex CLI session'
+  assert_contains "$DESKTOP_BOOTSTRAP_PS" 'Codex CLI still reads broken API-key auth' 'PowerShell bootstrap reports active Codex auth path when still broken'
   assert_contains "$DESKTOP_BOOTSTRAP_PS" 'Repair-CodexApiKeyAuth' 'PowerShell bootstrap invokes stale Codex auth repair'
   if awk '
     /^\} finally \{/ { in_finally = 1 }
@@ -1282,12 +1289,13 @@ test_desktop_powershell_static_checks() {
     in_finally && /Repair-CodexApiKeyAuth/ { repair = 1 }
     in_finally && /Refresh-PathFromEnvironment/ { path = 1 }
     in_finally && /Add-KnownCommandDirsToPath/ { dirs = 1 }
+    in_finally && /Test-CodexRepairSmoke/ { smoke = 1 }
     in_finally && /Remove-Item -Force \$tmp/ { remove = 1 }
-    END { exit(env && repair && path && dirs && remove ? 0 : 1) }
+    END { exit(env && repair && path && dirs && smoke && remove ? 0 : 1) }
   ' "$DESKTOP_BOOTSTRAP_PS"; then
-    pass 'PowerShell bootstrap refreshes current shell and auth even if setup fails'
+    pass 'PowerShell bootstrap refreshes current shell, auth, and smoke-checks Codex even if setup fails'
   else
-    fail 'PowerShell bootstrap refreshes current shell and auth even if setup fails'
+    fail 'PowerShell bootstrap refreshes current shell, auth, and smoke-checks Codex even if setup fails'
   fi
   assert_contains "$DESKTOP_BOOTSTRAP_PS" 'Add-KnownCommandDirsToPath' 'PowerShell bootstrap adds command dirs to current shell PATH after setup'
   assert_contains "$DESKTOP_BOOTSTRAP_PS" 'Join-Path $env:APPDATA "npm"' 'PowerShell bootstrap adds npm global bin to current shell PATH'

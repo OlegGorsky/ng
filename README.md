@@ -25,10 +25,11 @@ npx --yes github:OlegGorsky/ng setup --install-codex
 
 Команда спросит Vibemode API key скрытым вводом, установит `@openai/codex`, если Codex CLI ещё не найден, и запишет локальный Codex config для текущего пользователя. Один и тот же `~/.codex` или `%USERPROFILE%\.codex` используется Codex CLI и Codex Desktop, поэтому `--target all` является режимом по умолчанию.
 
-Если хочешь поставить опубликованный npm-релиз один раз глобально:
+Пока опубликованный npm-релиз не догнал GitHub-версию, не используй `npm install -g vibemode-codex` для ремонта Windows auth: registry может отдать старый пакет без фикса `requires_openai_auth`. Если нужен глобальный CLI, ставь текущий GitHub-код:
 
 ```bash
-npm install -g vibemode-codex
+npm uninstall -g vibemode-codex
+npm install -g github:OlegGorsky/ng
 vibemode setup --install-codex
 ```
 
@@ -101,6 +102,26 @@ pkg install -y curl bash && curl -fsSL -H 'Cache-Control: no-cache' https://raw.
 
 ```bash
 curl -fsSL -H 'Cache-Control: no-cache' https://raw.githubusercontent.com/OlegGorsky/ng/main/i | bash
+```
+
+## Быстрый ремонт Windows auth
+
+Если Codex на Windows пишет `API key auth is missing a key`, почти всегда запущен старый npm-пакет или Codex смотрит в другой `CODEX_HOME`. Запусти свежий GitHub bootstrap, он обходит кеш и переписывает активный Codex config:
+
+```powershell
+$u='https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1'; iex (iwr -UseBasicParsing -Headers @{'Cache-Control'='no-cache';'Pragma'='no-cache'} "$u?$(Get-Random)").Content
+```
+
+Если нужно заменить ключ, сначала скопируй новый Vibemode API key в буфер:
+
+```powershell
+$env:VIBEMODE_REPLACE_KEY='1'; $env:VIBEMODE_KEY_FROM_CLIPBOARD='1'; $u='https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1'; iex (iwr -UseBasicParsing -Headers @{'Cache-Control'='no-cache';'Pragma'='no-cache'} "$u?$(Get-Random)").Content; Remove-Item Env:\VIBEMODE_REPLACE_KEY, Env:\VIBEMODE_KEY_FROM_CLIPBOARD -ErrorAction SilentlyContinue
+```
+
+Проверить, куда реально смотрит Codex, можно без вывода самого ключа:
+
+```powershell
+$d=if($env:CODEX_HOME){$env:CODEX_HOME}else{Join-Path $HOME '.codex'}; "CODEX_HOME=$d"; Select-String -Path (Join-Path $d 'config.toml') -Pattern 'model_provider|requires_openai_auth|env_key|base_url' -ErrorAction SilentlyContinue; (Get-Content (Join-Path $d 'auth.json') -Raw -ErrorAction SilentlyContinue | ConvertFrom-Json).PSObject.Properties.Name
 ```
 
 ## Что будет по шагам

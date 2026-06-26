@@ -249,6 +249,40 @@ function Repair-CodexApiKeyAuth {
     }
 }
 
+function Write-CodexRepairState {
+    $activeHome = if ($env:CODEX_HOME) { $env:CODEX_HOME } else { Join-Path $HOME ".codex" }
+    Write-Host ("[Vibemode] CODEX_HOME=" + $activeHome)
+    Write-Host ("[Vibemode] HOME=" + $HOME)
+    Write-Host ("[Vibemode] USERPROFILE=" + $env:USERPROFILE)
+
+    $configFile = Join-Path $activeHome "config.toml"
+    if (Test-Path -LiteralPath $configFile) {
+        try {
+            $configText = Get-Content -LiteralPath $configFile -Raw
+            $requiresOpenAiAuth = if ($configText -match '(?m)^\s*requires_openai_auth\s*=\s*true\s*$') { "true" } else { "false" }
+            $hasEnvKey = if ($configText -match '(?m)^\s*env_key\s*=') { "true" } else { "false" }
+            Write-Host ("[Vibemode] config.toml: requires_openai_auth=" + $requiresOpenAiAuth + "; env_key_present=" + $hasEnvKey)
+        } catch {
+            Write-Warning ("Could not inspect " + $configFile + ": " + $_.Exception.Message)
+        }
+    } else {
+        Write-Host ("[Vibemode] config.toml missing: " + $configFile)
+    }
+
+    $authFile = Join-Path $activeHome "auth.json"
+    if (Test-Path -LiteralPath $authFile) {
+        try {
+            $payload = Get-Content -LiteralPath $authFile -Raw | ConvertFrom-Json
+            $names = @($payload.PSObject.Properties | ForEach-Object { $_.Name }) -join ", "
+            Write-Host ("[Vibemode] auth.json keys: " + $names)
+        } catch {
+            Write-Warning ("Could not inspect " + $authFile + ": " + $_.Exception.Message)
+        }
+    } else {
+        Write-Host ("[Vibemode] auth.json missing: " + $authFile)
+    }
+}
+
 function Get-CodexRepairCommand {
     Add-KnownCommandDirsToPath
     $codex = Get-Command codex.cmd -ErrorAction SilentlyContinue
@@ -451,6 +485,7 @@ try {
     Refresh-CodexEnvironment
     Repair-CodexApiKeyAuth
     Refresh-CodexEnvironment
+    Write-CodexRepairState
     Refresh-PathFromEnvironment
     Add-KnownCommandDirsToPath
     Test-CodexRepairSmoke

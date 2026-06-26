@@ -1666,6 +1666,65 @@ PY
   rm -rf "$tmp"
 }
 
+test_image_helper_reads_requires_openai_auth_provider() {
+  local tmp codex output
+  if ! command -v python3 >/dev/null 2>&1; then
+    pass 'image helper current Codex config check skipped without python3'
+    return
+  fi
+  if ! python3 -c 'import tomllib' >/dev/null 2>&1; then
+    pass 'image helper current Codex config check skipped without tomllib'
+    return
+  fi
+
+  tmp="$(mktemp -d)"
+  codex="$tmp/home/.codex"
+  mkdir -p "$codex"
+  cat > "$codex/auth.json" <<'JSON'
+{
+  "auth_mode": "apikey",
+  "OPENAI_API_KEY": "existing-test-api-key"
+}
+JSON
+  cat > "$codex/config.toml" <<'TOML'
+model = "gpt-5.4"
+model_provider = "vibemode"
+model_reasoning_effort = "medium"
+cli_auth_credentials_store = "file"
+
+[model_providers.vibemode]
+name = "vibemode"
+base_url = "https://api.vibemod.pro/v1"
+requires_openai_auth = true
+TOML
+
+  if output="$(env -u CODEX_KEY -u OPENAI_API_KEY -u CODEX_API_KEY CODEX_HOME="$codex" python3 - "$ROOT_DIR/scripts/responses_image.py" <<'PY' 2>&1
+import importlib.util
+import sys
+
+script_path = sys.argv[1]
+spec = importlib.util.spec_from_file_location("responses_image", script_path)
+module = importlib.util.module_from_spec(spec)
+assert spec.loader is not None
+sys.modules[spec.name] = module
+spec.loader.exec_module(module)
+config = module.resolve_config()
+assert config.api_key == "existing-test-api-key"
+assert config.base_url == "https://api.vibemod.pro/v1"
+assert config.model == "gpt-5.4"
+print("config-ok")
+PY
+)"; then
+    pass 'image helper reads requires_openai_auth Codex provider'
+  else
+    printf '%s\n' "$output" >&2
+    fail 'image helper reads requires_openai_auth Codex provider'
+  fi
+
+  assert_not_contains_text "$output" 'existing-test-api-key' 'image helper current config check does not print API key'
+  rm -rf "$tmp"
+}
+
 test_requires_key_when_non_interactive() {
   local tmp bin output status
   tmp="$(mktemp -d)"
@@ -1933,6 +1992,7 @@ test_termux_setup_detects_broken_codex_auth_cache
 test_bootstrap_downloads_and_runs_setup
 test_image_helper_static_checks
 test_image_helper_reads_selected_codex_provider
+test_image_helper_reads_requires_openai_auth_provider
 
 if [[ "$FAIL_COUNT" -gt 0 ]]; then
   printf '\n%d passed, %d failed\n' "$PASS_COUNT" "$FAIL_COUNT" >&2

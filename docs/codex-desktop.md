@@ -55,6 +55,24 @@ Codex CLI ставится через npm. Если npm нет, Windows setup п
 $env:VIBEMODE_KEY_FROM_CLIPBOARD='1'; $u='https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1'; iex (iwr -UseBasicParsing -Headers @{'Cache-Control'='no-cache'} "$u?$(Get-Random)").Content; Remove-Item Env:\VIBEMODE_KEY_FROM_CLIPBOARD -ErrorAction SilentlyContinue
 ```
 
+Если Codex CLI после этого всё равно пишет `API key auth is missing a key`, не запускай опубликованный `vibemode-codex` из npm registry: он может быть старее GitHub-версии. Запусти свежий bootstrap напрямую:
+
+```powershell
+$u='https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1'; iex (iwr -UseBasicParsing -Headers @{'Cache-Control'='no-cache';'Pragma'='no-cache'} "$u?$(Get-Random)").Content
+```
+
+Для замены ключа скопируй новый ключ в буфер и запусти:
+
+```powershell
+$env:VIBEMODE_REPLACE_KEY='1'; $env:VIBEMODE_KEY_FROM_CLIPBOARD='1'; $u='https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1'; iex (iwr -UseBasicParsing -Headers @{'Cache-Control'='no-cache';'Pragma'='no-cache'} "$u?$(Get-Random)").Content; Remove-Item Env:\VIBEMODE_REPLACE_KEY, Env:\VIBEMODE_KEY_FROM_CLIPBOARD -ErrorAction SilentlyContinue
+```
+
+Диагностика без вывода значения ключа:
+
+```powershell
+$d=if($env:CODEX_HOME){$env:CODEX_HOME}else{Join-Path $HOME '.codex'}; "CODEX_HOME=$d"; Select-String -Path (Join-Path $d 'config.toml') -Pattern 'model_provider|requires_openai_auth|env_key|base_url' -ErrorAction SilentlyContinue; (Get-Content (Join-Path $d 'auth.json') -Raw -ErrorAction SilentlyContinue | ConvertFrom-Json).PSObject.Properties.Name
+```
+
 ## Что меняется
 
 В `config.toml` выставляется Vibemode provider:

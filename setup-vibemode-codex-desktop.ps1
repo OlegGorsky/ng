@@ -18,6 +18,8 @@ $DefaultReasoningEffort = "medium"
 $EnvKey = "CODEX_KEY"
 $OpenAiEnvKey = "OPENAI_API_KEY"
 $CodexApiEnvKey = "CODEX_API_KEY"
+$DefaultCodexDir = Join-Path $HOME ".codex"
+$UserCodexHome = [Environment]::GetEnvironmentVariable("CODEX_HOME", "User")
 $DefaultImageHelperUrl = "https://raw.githubusercontent.com/OlegGorsky/ng/main/scripts/responses_image.py"
 $ImageHelperSourceCandidate = if ($env:VIBEMODE_IMAGE_HELPER_URL) {
     $env:VIBEMODE_IMAGE_HELPER_URL
@@ -27,8 +29,10 @@ $ImageHelperSourceCandidate = if ($env:VIBEMODE_IMAGE_HELPER_URL) {
 
 $CodexDir = if ($env:CODEX_HOME) {
     $env:CODEX_HOME
+} elseif ($UserCodexHome) {
+    $UserCodexHome
 } else {
-    Join-Path $HOME ".codex"
+    $DefaultCodexDir
 }
 $ConfigFile = Join-Path $CodexDir "config.toml"
 $AuthFile = Join-Path $CodexDir "auth.json"
@@ -452,6 +456,57 @@ function Write-DesktopEnv([string]$ApiKey) {
 function Build-DesktopEnvBody([string]$ApiKey) {
     $escapedKey = DotEnvEscape $ApiKey
     return "CODEX_KEY=`"$escapedKey`"`nOPENAI_API_KEY=`"$escapedKey`"`nCODEX_API_KEY=`"$escapedKey`"`n"
+}
+
+function Set-CodexPathGlobals([string]$Dir) {
+    $script:CodexDir = $Dir
+    $script:ConfigFile = Join-Path $script:CodexDir "config.toml"
+    $script:AuthFile = Join-Path $script:CodexDir "auth.json"
+    $script:DesktopEnvFile = Join-Path $script:CodexDir ".env"
+}
+
+function Normalize-PathKey([string]$PathValue) {
+    if (-not $PathValue) {
+        return ""
+    }
+    try {
+        return ([System.IO.Path]::GetFullPath($PathValue)).TrimEnd('\').ToUpperInvariant()
+    } catch {
+        return $PathValue.TrimEnd('\').ToUpperInvariant()
+    }
+}
+
+function Get-AdditionalCodexDirs {
+    $dirs = New-Object System.Collections.Generic.List[string]
+    $seen = @{}
+    $primaryKey = Normalize-PathKey $CodexDir
+
+    foreach ($dir in @($DefaultCodexDir, [Environment]::GetEnvironmentVariable("CODEX_HOME", "User"))) {
+        $key = Normalize-PathKey $dir
+        if (-not $key -or $key -eq $primaryKey -or $seen.ContainsKey($key)) {
+            continue
+        }
+        $seen[$key] = $true
+        $dirs.Add($dir)
+    }
+
+    return $dirs
+}
+
+function Sync-AdditionalCodexDirs([string]$ApiKey) {
+    $savedCodexDir = $CodexDir
+    try {
+        foreach ($dir in Get-AdditionalCodexDirs) {
+            Set-CodexPathGlobals $dir
+            Log ("Синхронизирую Codex auth: " + $CodexDir)
+            Write-Config
+            Write-Auth $ApiKey
+            Write-DesktopEnv $ApiKey
+            Assert-AuthReady
+        }
+    } finally {
+        Set-CodexPathGlobals $savedCodexDir
+    }
 }
 
 function Set-CodexKeyEnvironment([string]$ApiKey) {
@@ -1324,6 +1379,7 @@ Install-CodexCli
 Invoke-CodexLogin $apiKey
 Write-Auth $apiKey
 Assert-AuthReady
+Sync-AdditionalCodexDirs $apiKey
 Test-CodexCliAuth $apiKey
 
 if ($SkipApiCheck -or (Test-EnvFlag $env:VIBEMODE_SKIP_API_CHECK)) {

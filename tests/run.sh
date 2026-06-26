@@ -513,6 +513,40 @@ FAKE_CODEX
   rm -rf "$tmp"
 }
 
+test_npm_cli_setup_detects_broken_codex_auth_cache() {
+  local tmp bin output status
+  tmp="$(mktemp -d)"
+  bin="$tmp/bin"
+  mkdir -p "$bin"
+  cat > "$bin/codex" <<'FAKE_CODEX'
+#!/usr/bin/env bash
+printf 'API key auth is missing a key.\n' >&2
+exit 1
+FAKE_CODEX
+  chmod +x "$bin/codex"
+
+  set +e
+  output="$(CODEX_KEY='test-api-key' PATH="$bin:$PATH" run_cli "$tmp/home" setup --non-interactive --skip-api-check --target all)"
+  status="$?"
+  set -e
+
+  if [[ "$status" != '0' ]]; then
+    pass 'npm CLI setup fails on broken Codex API auth cache'
+  else
+    fail 'npm CLI setup fails on broken Codex API auth cache'
+  fi
+  assert_file "$tmp/home/.codex/auth.json" 'npm CLI writes auth before Codex auth smoke failure'
+  if [[ "$output" == *'broken API-key auth'* && "$output" == *'auth.json='* ]]; then
+    pass 'npm CLI setup explains broken Codex API auth cache'
+  else
+    printf '%s\n' "$output" >&2
+    fail 'npm CLI setup explains broken Codex API auth cache'
+  fi
+  assert_not_contains_text "$output" 'test-api-key' 'npm CLI Codex auth smoke failure does not print API key'
+
+  rm -rf "$tmp"
+}
+
 test_creates_files_and_checks_responses_api() {
   local tmp bin output
   tmp="$(mktemp -d)"
@@ -1105,6 +1139,10 @@ test_desktop_powershell_static_checks() {
   assert_contains "$DESKTOP_PS" '[Environment]::SetEnvironmentVariable($OpenAiEnvKey, $ApiKey, "User")' 'PowerShell setup persists OPENAI_API_KEY for new CLI sessions'
   assert_contains "$DESKTOP_PS" '[Environment]::SetEnvironmentVariable($CodexApiEnvKey, $ApiKey, "User")' 'PowerShell setup persists CODEX_API_KEY for new CLI sessions'
   assert_contains "$DESKTOP_PS" 'Set-CodexKeyEnvironment $apiKey' 'PowerShell setup applies CLI env key'
+  assert_contains "$DESKTOP_PS" '$DefaultCodexDir = Join-Path $HOME ".codex"' 'PowerShell setup knows Codex default directory'
+  assert_contains "$DESKTOP_PS" '[Environment]::GetEnvironmentVariable("CODEX_HOME", "User")' 'PowerShell setup also considers persisted CODEX_HOME'
+  assert_contains "$DESKTOP_PS" 'function Sync-AdditionalCodexDirs' 'PowerShell setup can repair stale alternate Codex dirs'
+  assert_contains "$DESKTOP_PS" 'Sync-AdditionalCodexDirs $apiKey' 'PowerShell setup repairs alternate Codex dirs before CLI smoke-check'
   assert_contains "$DESKTOP_PS" 'function Install-PowerShellEnvProfile' 'PowerShell setup can refresh Codex env from PowerShell profiles'
   assert_contains "$DESKTOP_PS" 'Microsoft.PowerShell_profile.ps1' 'PowerShell setup targets Windows PowerShell and PowerShell profiles'
   assert_contains "$DESKTOP_PS" '# >>> vibemode codex >>>' 'PowerShell setup writes an idempotent profile block'
@@ -1791,6 +1829,7 @@ test_desktop_powershell_setup_download_resolution
 test_pipe_safe_prompt_static_checks
 test_npm_cli_package_metadata
 test_npm_cli_setup_status_openai_and_run
+test_npm_cli_setup_detects_broken_codex_auth_cache
 test_desktop_interactive_prompt_reads_from_tty
 test_requires_key_when_non_interactive
 test_termux_setup_can_replace_existing_auth_key

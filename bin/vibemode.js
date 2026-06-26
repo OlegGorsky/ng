@@ -655,6 +655,30 @@ function runChecked(command, args) {
   }
 }
 
+function testCodexCliAuth(paths, key) {
+  if (!commandExists('codex')) {
+    return;
+  }
+  const env = {
+    ...process.env,
+    CODEX_HOME: paths.dir,
+    [ENV_KEY]: key,
+    [OPENAI_ENV_KEY]: key,
+    [CODEX_API_ENV_KEY]: key,
+  };
+  const command = process.platform === 'win32' ? 'codex.cmd' : 'codex';
+  const result = childProcess.spawnSync(command, [], {
+    input: '',
+    encoding: 'utf8',
+    env,
+    shell: process.platform === 'win32',
+  });
+  const output = `${result.stdout || ''}\n${result.stderr || ''}`;
+  if (output.includes('API key auth is missing a key')) {
+    throw new Error(`Codex CLI still sees broken API-key auth. CODEX_HOME=${paths.dir}; auth.json=${paths.auth}`);
+  }
+}
+
 async function maybeInstallCodex(options) {
   if (commandExists('codex')) {
     return;
@@ -696,6 +720,7 @@ async function commandSetup(options) {
 
   await maybeInstallCodex(options);
   writeVibemodeLocal(paths, key, options.model || DEFAULT_MODEL, options);
+  testCodexCliAuth(paths, key);
   console.log(`codex_dir: ${paths.dir}`);
   console.log('provider: vibemode');
   console.log(`model: ${options.model || DEFAULT_MODEL}`);

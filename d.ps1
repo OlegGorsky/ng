@@ -30,6 +30,15 @@ function Refresh-PathFromEnvironment {
     $env:Path = ($paths -join ";")
 }
 
+function Refresh-CodexEnvironment {
+    foreach ($name in @("CODEX_HOME", "CODEX_KEY", "OPENAI_API_KEY", "CODEX_API_KEY")) {
+        $value = [Environment]::GetEnvironmentVariable($name, "User")
+        if ($null -ne $value) {
+            Set-Item -Path ("Env:" + $name) -Value $value
+        }
+    }
+}
+
 function Add-KnownCommandDirsToPath {
     $dirs = @()
     if ($env:APPDATA) {
@@ -181,6 +190,7 @@ try {
     if ($exitCode -ne 0) {
         throw "Setup failed with exit code $exitCode."
     }
+    Refresh-CodexEnvironment
     Refresh-PathFromEnvironment
     Add-KnownCommandDirsToPath
 } finally {

@@ -42,7 +42,7 @@ brew install python
 
 ```bash
 mkdir -p ~/.local/bin
-curl -fsSL https://raw.githubusercontent.com/OlegGorsky/ng/main/scripts/responses_image.py -o ~/.local/bin/responses-image
+curl -fsSL -H 'Cache-Control: no-cache' https://raw.githubusercontent.com/OlegGorsky/ng/main/scripts/responses_image.py -o ~/.local/bin/responses-image
 chmod +x ~/.local/bin/responses-image
 ```
 

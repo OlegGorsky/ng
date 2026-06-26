@@ -84,13 +84,13 @@ npx --yes vibemode-codex run -- codex --yolo
 Для Codex Desktop на Ubuntu/Linux или macOS:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/OlegGorsky/ng/main/d | bash
+curl -fsSL -H 'Cache-Control: no-cache' https://raw.githubusercontent.com/OlegGorsky/ng/main/d | bash
 ```
 
 Для Codex Desktop на Windows открой PowerShell:
 
 ```powershell
-irm "https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1?$(Get-Random)" | iex
+$u='https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1'; iex (iwr -UseBasicParsing -Headers @{'Cache-Control'='no-cache'} "$u?$(Get-Random)").Content
 ```
 
 Windows-команда также попробует поставить Codex CLI: сначала через npm, а если npm не найден — через Node.js LTS через `winget` или официальный zip с `nodejs.org`.
@@ -100,13 +100,13 @@ Windows-команда также попробует поставить Codex CL
 Для Codex CLI в Termux:
 
 ```bash
-pkg install -y curl bash && curl -fsSL https://raw.githubusercontent.com/OlegGorsky/ng/main/i | bash
+pkg install -y curl bash && curl -fsSL -H 'Cache-Control: no-cache' https://raw.githubusercontent.com/OlegGorsky/ng/main/i | bash
 ```
 
 Если `curl` в Termux уже установлен:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/OlegGorsky/ng/main/i | bash
+curl -fsSL -H 'Cache-Control: no-cache' https://raw.githubusercontent.com/OlegGorsky/ng/main/i | bash
 ```
 
 ## Что будет по шагам
@@ -176,19 +176,19 @@ CODEX_API_KEY="..."
 Если проверка `/v1/responses` вернула `HTTP 401`, настройки уже сохранены. Это почти всегда означает, что сервер не принял сохранённый API-ключ. Для принудительной замены ключа в Windows скопируй новый ключ в буфер и запусти:
 
 ```powershell
-$env:VIBEMODE_REPLACE_KEY='1'; $env:VIBEMODE_KEY_FROM_CLIPBOARD='1'; irm "https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1?$(Get-Random)" | iex; Remove-Item Env:\VIBEMODE_REPLACE_KEY, Env:\VIBEMODE_KEY_FROM_CLIPBOARD -ErrorAction SilentlyContinue
+$env:VIBEMODE_REPLACE_KEY='1'; $env:VIBEMODE_KEY_FROM_CLIPBOARD='1'; $u='https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1'; iex (iwr -UseBasicParsing -Headers @{'Cache-Control'='no-cache'} "$u?$(Get-Random)").Content; Remove-Item Env:\VIBEMODE_REPLACE_KEY, Env:\VIBEMODE_KEY_FROM_CLIPBOARD -ErrorAction SilentlyContinue
 ```
 
 Повторить запись без контрольного запроса можно опцией `-SkipApiCheck` на Windows или `--skip-api-check` на Linux/macOS/Termux. Для короткой Windows-команды:
 
 ```powershell
-$env:VIBEMODE_SKIP_API_CHECK='1'; irm "https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1?$(Get-Random)" | iex; Remove-Item Env:\VIBEMODE_SKIP_API_CHECK -ErrorAction SilentlyContinue
+$env:VIBEMODE_SKIP_API_CHECK='1'; $u='https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1'; iex (iwr -UseBasicParsing -Headers @{'Cache-Control'='no-cache'} "$u?$(Get-Random)").Content; Remove-Item Env:\VIBEMODE_SKIP_API_CHECK -ErrorAction SilentlyContinue
 ```
 
 При вставке в prompt ключ не показывается, но по количеству `*` видно, сколько символов считалось. Если в Windows вставка всё равно работает криво, скопируй ключ в буфер обмена и запусти:
 
 ```powershell
-$env:VIBEMODE_KEY_FROM_CLIPBOARD='1'; irm "https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1?$(Get-Random)" | iex; Remove-Item Env:\VIBEMODE_KEY_FROM_CLIPBOARD -ErrorAction SilentlyContinue
+$env:VIBEMODE_KEY_FROM_CLIPBOARD='1'; $u='https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1'; iex (iwr -UseBasicParsing -Headers @{'Cache-Control'='no-cache'} "$u?$(Get-Random)").Content; Remove-Item Env:\VIBEMODE_KEY_FROM_CLIPBOARD -ErrorAction SilentlyContinue
 ```
 
 ## Важно про окно авторизации Codex Desktop
@@ -204,19 +204,19 @@ $env:VIBEMODE_KEY_FROM_CLIPBOARD='1'; irm "https://raw.githubusercontent.com/Ole
 Desktop Ubuntu/Linux/macOS:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/OlegGorsky/ng/main/d | bash
+curl -fsSL -H 'Cache-Control: no-cache' https://raw.githubusercontent.com/OlegGorsky/ng/main/d | bash
 ```
 
 Desktop Windows:
 
 ```powershell
-irm https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1 | iex
+$u='https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1'; iex (iwr -UseBasicParsing -Headers @{'Cache-Control'='no-cache'} "$u?$(Get-Random)").Content
 ```
 
 Termux:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/OlegGorsky/ng/main/i | bash
+curl -fsSL -H 'Cache-Control: no-cache' https://raw.githubusercontent.com/OlegGorsky/ng/main/i | bash
 ```
 
 ## Генерация изображений

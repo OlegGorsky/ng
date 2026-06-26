@@ -589,7 +589,7 @@ install_image_helper() {
   local helper_dir
   helper_dir="$(dirname "$IMAGE_HELPER_PATH")"
   mkdir -p "$helper_dir"
-  curl -fsSL "$IMAGE_HELPER_URL" -o "$IMAGE_HELPER_PATH"
+  curl -fsSL -H 'Cache-Control: no-cache' "$IMAGE_HELPER_URL" -o "$IMAGE_HELPER_PATH"
   chmod +x "$IMAGE_HELPER_PATH"
   log "Helper для картинок: $IMAGE_HELPER_PATH"
   if ! command -v python3 >/dev/null 2>&1; then

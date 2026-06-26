@@ -11,20 +11,20 @@
 ## Ubuntu/Linux
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/OlegGorsky/ng/main/d | bash
+curl -fsSL -H 'Cache-Control: no-cache' https://raw.githubusercontent.com/OlegGorsky/ng/main/d | bash
 ```
 
 Если `curl` не установлен:
 
 ```bash
 sudo apt update && sudo apt install -y curl python3
-curl -fsSL https://raw.githubusercontent.com/OlegGorsky/ng/main/d | bash
+curl -fsSL -H 'Cache-Control: no-cache' https://raw.githubusercontent.com/OlegGorsky/ng/main/d | bash
 ```
 
 ## macOS
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/OlegGorsky/ng/main/d | bash
+curl -fsSL -H 'Cache-Control: no-cache' https://raw.githubusercontent.com/OlegGorsky/ng/main/d | bash
 ```
 
 Если Python не установлен, поставь его через Homebrew:
@@ -38,7 +38,7 @@ brew install python
 Открой PowerShell:
 
 ```powershell
-irm https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1 | iex
+$u='https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1'; iex (iwr -UseBasicParsing -Headers @{'Cache-Control'='no-cache'} "$u?$(Get-Random)").Content
 ```
 
 Скрипт сначала настраивает Windows-профиль Codex Desktop. Затем он проверяет `wsl.exe`; если WSL установлен и default distro уже инициализирован, туда записываются тот же `~/.codex/config.toml`, `~/.codex/auth.json` и helper `~/.local/bin/responses-image`.
@@ -52,7 +52,7 @@ Codex CLI ставится через npm. Если npm нет, Windows setup п
 Если парольный prompt плохо принимает вставку, скопируй ключ в буфер обмена и запусти:
 
 ```powershell
-$env:VIBEMODE_KEY_FROM_CLIPBOARD='1'; irm "https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1?$(Get-Random)" | iex; Remove-Item Env:\VIBEMODE_KEY_FROM_CLIPBOARD -ErrorAction SilentlyContinue
+$env:VIBEMODE_KEY_FROM_CLIPBOARD='1'; $u='https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1'; iex (iwr -UseBasicParsing -Headers @{'Cache-Control'='no-cache'} "$u?$(Get-Random)").Content; Remove-Item Env:\VIBEMODE_KEY_FROM_CLIPBOARD -ErrorAction SilentlyContinue
 ```
 
 ## Что меняется
@@ -93,13 +93,13 @@ CODEX_API_KEY="..."
 Если проверка `/v1/responses` вернула `HTTP 401`, настройки уже сохранены. Это обычно означает, что API-ключ не принят сервером. Для принудительной замены ключа в Windows скопируй новый ключ в буфер и запусти:
 
 ```powershell
-$env:VIBEMODE_REPLACE_KEY='1'; $env:VIBEMODE_KEY_FROM_CLIPBOARD='1'; irm "https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1?$(Get-Random)" | iex; Remove-Item Env:\VIBEMODE_REPLACE_KEY, Env:\VIBEMODE_KEY_FROM_CLIPBOARD -ErrorAction SilentlyContinue
+$env:VIBEMODE_REPLACE_KEY='1'; $env:VIBEMODE_KEY_FROM_CLIPBOARD='1'; $u='https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1'; iex (iwr -UseBasicParsing -Headers @{'Cache-Control'='no-cache'} "$u?$(Get-Random)").Content; Remove-Item Env:\VIBEMODE_REPLACE_KEY, Env:\VIBEMODE_KEY_FROM_CLIPBOARD -ErrorAction SilentlyContinue
 ```
 
 Для повторной записи без проверки можно запустить скрипт с `-SkipApiCheck`, но для реальной работы Codex ключ всё равно должен проходить авторизацию. Для короткой Windows-команды:
 
 ```powershell
-$env:VIBEMODE_SKIP_API_CHECK='1'; irm "https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1?$(Get-Random)" | iex; Remove-Item Env:\VIBEMODE_SKIP_API_CHECK -ErrorAction SilentlyContinue
+$env:VIBEMODE_SKIP_API_CHECK='1'; $u='https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1'; iex (iwr -UseBasicParsing -Headers @{'Cache-Control'='no-cache'} "$u?$(Get-Random)").Content; Remove-Item Env:\VIBEMODE_SKIP_API_CHECK -ErrorAction SilentlyContinue
 ```
 
 ## Окно авторизации Codex Desktop

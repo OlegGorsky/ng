@@ -14,5 +14,5 @@ cleanup() {
 }
 trap cleanup EXIT
 
-curl -fsSL "$SETUP_URL" -o "$tmp"
+curl -fsSL -H 'Cache-Control: no-cache' "$SETUP_URL" -o "$tmp"
 bash "$tmp" "$@"

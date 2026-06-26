@@ -141,6 +141,7 @@ function Get-DownloadBytes([string]$Source, [string]$Label) {
     }
 
     try {
+        $webClient.Headers.Set("Cache-Control", "no-cache")
         return $webClient.DownloadData($downloadUrl)
     } catch {
         Die ("Could not download " + $Label + " from " + $downloadUrl + ": " + $_.Exception.Message)

@@ -217,6 +217,7 @@ function Get-SetupBytes([string]$Url) {
     }
 
     try {
+        $webClient.Headers.Set("Cache-Control", "no-cache")
         return $webClient.DownloadData($downloadUrl)
     } catch {
         throw ("Could not download Vibemode setup from " + $downloadUrl + ": " + $_.Exception.Message)

@@ -1200,6 +1200,7 @@ test_desktop_powershell_static_checks() {
   assert_contains "$DESKTOP_PS" 'Save-DownloadedTextFile $imageHelperSource $ImageHelperPath "image helper"' 'PowerShell setup downloads image helper through hardened downloader'
   assert_contains "$DESKTOP_PS" 'Ignoring invalid " + $Name + " value' 'PowerShell setup ignores invalid download source overrides'
   assert_contains "$DESKTOP_PS" '$Url + "?cb=" + $cacheBust' 'PowerShell setup appends cache-bust query by concatenation'
+  assert_contains "$DESKTOP_PS" '$webClient.Headers.Set("Cache-Control", "no-cache")' 'PowerShell setup asks raw GitHub to revalidate downloads'
   assert_not_contains_file "$DESKTOP_PS" '$Url?cb=$cacheBust' 'PowerShell setup does not interpolate URL before ?cb'
   assert_contains "$DESKTOP_PS" 'DefaultNetworkCredentials' 'PowerShell setup supports default proxy credentials for downloads'
   assert_contains "$DESKTOP_PS" 'download looks like HTML, not a script' 'PowerShell setup rejects HTML helper downloads'
@@ -1257,6 +1258,7 @@ test_desktop_powershell_static_checks() {
   assert_contains "$DESKTOP_BOOTSTRAP_PS" 'Test-Path -LiteralPath $Url' 'PowerShell bootstrap supports local setup override paths'
   assert_contains "$DESKTOP_BOOTSTRAP_PS" 'User-Agent' 'PowerShell bootstrap sends a stable user agent'
   assert_contains "$DESKTOP_BOOTSTRAP_PS" 'DefaultNetworkCredentials' 'PowerShell bootstrap supports default proxy credentials'
+  assert_contains "$DESKTOP_BOOTSTRAP_PS" '$webClient.Headers.Set("Cache-Control", "no-cache")' 'PowerShell bootstrap asks raw GitHub to revalidate setup downloads'
   assert_contains "$DESKTOP_BOOTSTRAP_PS" '$webClient.DownloadData($downloadUrl)' 'PowerShell bootstrap downloads setup as bytes'
   assert_contains "$DESKTOP_BOOTSTRAP_PS" 'New-Object System.Text.UTF8Encoding -ArgumentList $false, $true' 'PowerShell bootstrap strictly decodes setup as UTF-8'
   assert_contains "$DESKTOP_BOOTSTRAP_PS" '$strictUtf8.GetString($Bytes)' 'PowerShell bootstrap decodes setup as strict UTF-8'
@@ -1505,6 +1507,10 @@ test_desktop_powershell_setup_download_resolution() {
 }
 
 test_pipe_safe_prompt_static_checks() {
+  assert_contains "$DESKTOP_BOOTSTRAP" "Cache-Control: no-cache" 'Desktop bash bootstrap asks raw GitHub to revalidate setup downloads'
+  assert_contains "$BOOTSTRAP" "Cache-Control: no-cache" 'Termux bootstrap asks raw GitHub to revalidate setup downloads'
+  assert_contains "$DESKTOP_SCRIPT" "Cache-Control: no-cache" 'Desktop bash setup asks raw GitHub to revalidate helper downloads'
+  assert_contains "$ROOT_DIR/README.md" "Cache-Control: no-cache" 'README tells raw GitHub installs to revalidate cached downloads'
   assert_contains "$SCRIPT" 'read_secret()' 'Termux setup has hidden prompt helper'
   assert_contains "$SCRIPT" '</dev/tty' 'Termux setup reads prompts from terminal'
   assert_contains "$DESKTOP_SCRIPT" 'read_secret()' 'Desktop setup has hidden prompt helper'

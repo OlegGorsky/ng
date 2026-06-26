@@ -7,7 +7,7 @@
 
 Основной способ установки теперь единый CLI через `npm`/`npx`. Старые короткие `curl`/PowerShell команды тоже остаются: они удобны для быстрой настройки без глобальной установки этого CLI.
 
-CLI и скрипты прописывают Vibemode API в Codex config, сохраняют ключ в `auth.json`, настраивают `CODEX_KEY`, `OPENAI_API_KEY` и `CODEX_API_KEY` для Codex CLI, проверяют `/v1/responses` и не печатают API-ключ в терминал.
+CLI и скрипты прописывают Vibemode API в Codex config, сохраняют официальный кеш API-логина Codex в `auth.json`, настраивают `CODEX_KEY`, `OPENAI_API_KEY` и `CODEX_API_KEY` в окружении, проверяют `/v1/responses` и не печатают API-ключ в терминал.
 
 ## Быстрый старт через npx
 
@@ -116,7 +116,7 @@ curl -fsSL https://raw.githubusercontent.com/OlegGorsky/ng/main/i | bash
 3. Если `auth.json` уже есть, можно оставить ключ, заменить его или удалить через `vibemode key remove`.
 4. `config.toml` обновится на Vibemode provider.
 5. Для Codex Desktop запишется приватный `~/.codex/.env`, потому что Desktop читает provider key из окружения.
-6. Для Codex CLI дополнительно запишутся `OPENAI_API_KEY` и `CODEX_API_KEY` с тем же значением, а Windows-скрипт выполнит `codex login --with-api-key`.
+6. Для Codex CLI `auth.json` приводится к формату `codex login --with-api-key`: `"auth_mode": "apikey"` и `OPENAI_API_KEY`. `CODEX_KEY`, `OPENAI_API_KEY` и `CODEX_API_KEY` дополнительно пишутся в `.env`, `vibemode.env` или пользовательские переменные окружения.
 7. Ключ проверится через `POST https://api.vibemod.pro/v1/responses`, если проверка не отключена.
 8. По команде `vibemode use openai` конфиг возвращается к стандартному OpenAI provider.
 9. По команде `vibemode remove` удаляются Vibemode key material и shell startup block, а Codex config переключается на OpenAI.
@@ -150,13 +150,11 @@ reasoning_effort = "medium"
 ```json
 {
   "auth_mode": "apikey",
-  "CODEX_KEY": "...",
-  "OPENAI_API_KEY": "...",
-  "CODEX_API_KEY": "..."
+  "OPENAI_API_KEY": "..."
 }
 ```
 
-`.env` для Codex Desktop:
+`.env` для Codex Desktop и `vibemode.env`/пользовательское окружение для CLI:
 
 ```dotenv
 CODEX_KEY="..."
@@ -196,7 +194,7 @@ $env:VIBEMODE_KEY_FROM_CLIPBOARD='1'; irm https://raw.githubusercontent.com/Oleg
 
 ## Важно про окно авторизации Codex Desktop
 
-Скрипт не авторизует подписку ChatGPT внутри интерфейса Codex Desktop. Он настраивает API-режим: записывает Vibemode provider в `config.toml` и API-ключ в `auth.json`.
+Скрипт не авторизует подписку ChatGPT внутри интерфейса Codex Desktop. Он настраивает API-режим: записывает Vibemode provider в `config.toml`, официальный кеш API-логина в `auth.json` и provider key в окружение.
 
 Если после установки Codex Desktop показывает экран выбора авторизации, выбирай вариант с API, а не подписку. После этого перезапусти Codex Desktop. Если приложение снова просит ключ, проверь, что файлы лежат именно в `%USERPROFILE%\.codex` на Windows или в `~/.codex` внутри выбранного WSL/default user.
 
@@ -253,7 +251,7 @@ Termux или локальный запуск из репозитория:
 python3 scripts/responses_image.py generate "cinematic photo of a compact AI workstation" --size wide --quality high
 ```
 
-Helper читает ключ из Codex `auth.json`, а `base_url` и модель из активного `model_provider`, поэтому картинки идут через Vibemode после настройки.
+Helper читает ключ из окружения или `OPENAI_API_KEY` в Codex `auth.json`, а `base_url` и модель из активного `model_provider`, поэтому картинки идут через Vibemode после настройки.
 
 Подробности: [docs/responses-image-generation.md](docs/responses-image-generation.md).
 

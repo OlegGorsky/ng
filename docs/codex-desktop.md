@@ -79,13 +79,11 @@ reasoning_effort = "medium"
 ```json
 {
   "auth_mode": "apikey",
-  "CODEX_KEY": "...",
-  "OPENAI_API_KEY": "...",
-  "CODEX_API_KEY": "..."
+  "OPENAI_API_KEY": "..."
 }
 ```
 
-В `.env` для Codex Desktop записывается:
+В `.env` для Codex Desktop и пользовательское окружение для CLI записывается provider key:
 
 ```dotenv
 CODEX_KEY="..."
@@ -109,7 +107,7 @@ $env:VIBEMODE_SKIP_API_CHECK='1'; irm https://raw.githubusercontent.com/OlegGors
 
 ## Окно авторизации Codex Desktop
 
-Скрипт не авторизует подписку ChatGPT внутри UI Codex Desktop. Он включает API-режим через локальные файлы `config.toml`, `auth.json` и `.env`.
+Скрипт не авторизует подписку ChatGPT внутри UI Codex Desktop. Он включает API-режим через локальные файлы `config.toml`, официальный кеш API-логина `auth.json` и `.env`.
 
 Если Codex Desktop после установки показывает выбор авторизации, выбирай вариант с API, а не подписку. Если приложение снова просит ключ, проверь, что `config.toml`, `auth.json` и `.env` лежат в `%USERPROFILE%\.codex` на Windows или в `~/.codex` внутри выбранного WSL/default user.
 
@@ -157,7 +155,7 @@ Windows:
 ~/.local/bin/responses-image generate "cinematic photo of a compact AI workstation" --size wide --quality high
 ```
 
-Helper читает ключ из Codex `auth.json` (`CODEX_KEY`, `OPENAI_API_KEY` или `CODEX_API_KEY`), а `base_url` и модель из активного `model_provider`, поэтому после desktop setup картинки идут через Vibemode.
+Helper читает ключ из окружения или `OPENAI_API_KEY` в Codex `auth.json`, а `base_url` и модель из активного `model_provider`, поэтому после desktop setup картинки идут через Vibemode.
 
 ## Локальный запуск из клона
 
@@ -173,7 +171,7 @@ Windows:
 powershell -ExecutionPolicy Bypass -File .\setup-vibemode-codex-desktop.ps1
 ```
 
-Windows setup также пробует поставить Codex CLI: `@openai/codex` через npm, а при отсутствии npm — Node.js LTS через `winget` или официальный zip с `nodejs.org`. После установки CLI Windows setup выполняет `codex login --with-api-key` и затем сохраняет ключ во все совместимые имена: `CODEX_KEY`, `OPENAI_API_KEY` и `CODEX_API_KEY`.
+Windows setup также пробует поставить Codex CLI: `@openai/codex` через npm, а при отсутствии npm — Node.js LTS через `winget` или официальный zip с `nodejs.org`. После установки CLI Windows setup выполняет `codex login --with-api-key`, нормализует `auth.json` к официальному формату с `OPENAI_API_KEY` и сохраняет `CODEX_KEY`, `OPENAI_API_KEY`, `CODEX_API_KEY` в окружение.
 
 Полезные опции:
 

@@ -441,7 +441,7 @@ function Write-Auth([string]$ApiKey) {
 
 function Build-AuthBody([string]$ApiKey) {
     $escapedKey = JsonEscape $ApiKey
-    return "{`n  `"auth_mode`": `"apikey`",`n  `"CODEX_KEY`": `"$escapedKey`",`n  `"OPENAI_API_KEY`": `"$escapedKey`",`n  `"CODEX_API_KEY`": `"$escapedKey`"`n}`n"
+    return "{`n  `"auth_mode`": `"apikey`",`n  `"OPENAI_API_KEY`": `"$escapedKey`"`n}`n"
 }
 
 function Write-DesktopEnv([string]$ApiKey) {

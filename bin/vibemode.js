@@ -325,9 +325,9 @@ function readAuthKey(paths) {
 function writeAuthKey(paths, key) {
   const payload = parseJsonFile(paths.auth);
   payload.auth_mode = 'apikey';
-  for (const name of AUTH_ENV_KEYS) {
-    payload[name] = key;
-  }
+  payload[OPENAI_ENV_KEY] = key;
+  delete payload[ENV_KEY];
+  delete payload[CODEX_API_ENV_KEY];
   writeIfChanged(paths.auth, `${JSON.stringify(payload, null, 2)}\n`, 0o600);
 }
 
@@ -338,6 +338,14 @@ function removeAuthKey(paths) {
   const payload = parseJsonFile(paths.auth);
   for (const name of AUTH_ENV_KEYS) {
     delete payload[name];
+  }
+  if (payload.auth_mode === 'apikey') {
+    delete payload.auth_mode;
+  }
+  if (Object.keys(payload).length === 0) {
+    backupFile(paths.auth);
+    fs.rmSync(paths.auth, { force: true });
+    return;
   }
   writeIfChanged(paths.auth, `${JSON.stringify(payload, null, 2)}\n`, 0o600);
 }

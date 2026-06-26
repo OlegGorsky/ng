@@ -405,9 +405,7 @@ write_auth() {
   cat > "$tmp" <<JSON
 {
   "auth_mode": "apikey",
-  "CODEX_KEY": "$escaped_key",
-  "OPENAI_API_KEY": "$escaped_key",
-  "CODEX_API_KEY": "$escaped_key"
+  "OPENAI_API_KEY": "$escaped_key"
 }
 JSON
   write_if_changed "$AUTH_FILE" "$tmp" 600

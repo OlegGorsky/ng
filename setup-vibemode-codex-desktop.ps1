@@ -833,12 +833,17 @@ function Install-CodexCli {
     }
 }
 
-function Invoke-CodexLogin([string]$ApiKey) {
+function Get-CodexCommand {
     Add-KnownNodeDirsToPath
     $codex = Get-Command codex.cmd -ErrorAction SilentlyContinue
     if (-not $codex) {
         $codex = Get-Command codex -ErrorAction SilentlyContinue
     }
+    return $codex
+}
+
+function Invoke-CodexLogin([string]$ApiKey) {
+    $codex = Get-CodexCommand
     if (-not $codex) {
         return
     }
@@ -862,6 +867,29 @@ function Invoke-CodexLogin([string]$ApiKey) {
             Warn "Codex API-key login не прошёл."
         }
     }
+}
+
+function Test-CodexCliAuth([string]$ApiKey) {
+    $codex = Get-CodexCommand
+    if (-not $codex) {
+        return
+    }
+
+    $previousErrorActionPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = "Continue"
+        $output = "" | & $codex.Source 2>&1
+    } catch {
+        $output = @($_.Exception.Message)
+    } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+
+    $details = Sanitize-Secret (($output | Out-String).Trim()) $ApiKey
+    if ($details -match 'API key auth is missing a key') {
+        Die ("Codex CLI всё ещё видит сломанный API-key auth. CODEX_HOME=" + $env:CODEX_HOME + "; auth.json=" + $AuthFile)
+    }
+    Log "Codex CLI auth smoke-check пройден"
 }
 
 function Get-PythonInstallerUrl {
@@ -1251,6 +1279,7 @@ Install-CodexCli
 Invoke-CodexLogin $apiKey
 Write-Auth $apiKey
 Assert-AuthReady
+Test-CodexCliAuth $apiKey
 
 if ($SkipApiCheck -or (Test-EnvFlag $env:VIBEMODE_SKIP_API_CHECK)) {
     Log "Проверка /v1/responses пропущена"

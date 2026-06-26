@@ -1511,6 +1511,8 @@ test_pipe_safe_prompt_static_checks() {
   assert_contains "$BOOTSTRAP" "Cache-Control: no-cache" 'Termux bootstrap asks raw GitHub to revalidate setup downloads'
   assert_contains "$DESKTOP_SCRIPT" "Cache-Control: no-cache" 'Desktop bash setup asks raw GitHub to revalidate helper downloads'
   assert_contains "$ROOT_DIR/README.md" "Cache-Control: no-cache" 'README tells raw GitHub installs to revalidate cached downloads'
+  assert_contains "$ROOT_DIR/README.md" 'npx --yes github:OlegGorsky/ng setup --install-codex' 'README recommends fresh GitHub npx setup'
+  assert_contains "$ROOT_DIR/README.md" 'npx --yes github:OlegGorsky/ng run -- codex --yolo' 'README recommends fresh GitHub npx run wrapper'
   assert_contains "$SCRIPT" 'read_secret()' 'Termux setup has hidden prompt helper'
   assert_contains "$SCRIPT" '</dev/tty' 'Termux setup reads prompts from terminal'
   assert_contains "$DESKTOP_SCRIPT" 'read_secret()' 'Desktop setup has hidden prompt helper'

@@ -450,6 +450,11 @@ function Build-DesktopEnvBody([string]$ApiKey) {
     return "CODEX_KEY=`"$escapedKey`"`n"
 }
 
+function Set-CodexKeyEnvironment([string]$ApiKey) {
+    Set-Item -Path ("Env:" + $EnvKey) -Value $ApiKey
+    [Environment]::SetEnvironmentVariable($EnvKey, $ApiKey, "User")
+}
+
 function Sanitize-Secret([string]$Text, [string]$ApiKey) {
     if (-not $Text) {
         return ""
@@ -1184,6 +1189,7 @@ Log "Папка Codex Desktop: $CodexDir"
 Write-Config
 Write-Auth $apiKey
 Write-DesktopEnv $apiKey
+Set-CodexKeyEnvironment $apiKey
 Install-ImageHelper
 Install-WslConfig $apiKey
 Install-CodexCli

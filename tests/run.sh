@@ -1303,7 +1303,7 @@ test_desktop_powershell_wsl_ready_failure_is_nonfatal() {
 }
 
 test_desktop_powershell_wsl_embedded_script() {
-  local tmp script provider_b64 base_url_b64 model_b64 effort_b64 auth_b64 helper_b64 output
+  local tmp script provider_b64 base_url_b64 model_b64 effort_b64 api_key_b64 auth_b64 helper_b64 output
   if ! command -v base64 >/dev/null 2>&1; then
     pass 'PowerShell WSL embedded script check skipped without base64'
     return
@@ -1321,6 +1321,7 @@ test_desktop_powershell_wsl_embedded_script() {
   base_url_b64="$(printf '%s' 'https://api.vibemod.pro/v1' | base64 | tr -d '\n')"
   model_b64="$(printf '%s' 'gpt-5.4' | base64 | tr -d '\n')"
   effort_b64="$(printf '%s' 'medium' | base64 | tr -d '\n')"
+  api_key_b64="$(printf '%s' 'test-api-key' | base64 | tr -d '\n')"
   auth_b64="$(printf '{\n  "auth_mode": "apikey",\n  "OPENAI_API_KEY": "test-api-key"\n}\n' | base64 | tr -d '\n')"
   desktop_env_b64="$(printf 'CODEX_KEY="test-api-key"\nOPENAI_API_KEY="test-api-key"\nCODEX_API_KEY="test-api-key"\n' | base64 | tr -d '\n')"
   helper_b64="$(printf '#!/usr/bin/env python3\nprint("helper")\n' | base64 | tr -d '\n')"
@@ -1329,6 +1330,7 @@ test_desktop_powershell_wsl_embedded_script() {
   script="${script//__BASE_URL_B64__/$base_url_b64}"
   script="${script//__MODEL_B64__/$model_b64}"
   script="${script//__EFFORT_B64__/$effort_b64}"
+  script="${script//__API_KEY_B64__/$api_key_b64}"
   script="${script//__AUTH_B64__/$auth_b64}"
   script="${script//__DESKTOP_ENV_B64__/$desktop_env_b64}"
   script="${script//__HELPER_B64__/$helper_b64}"
@@ -1346,6 +1348,7 @@ test_desktop_powershell_wsl_embedded_script() {
   assert_file "$tmp/home/.codex/config.toml" 'PowerShell WSL script creates config.toml'
   assert_file "$tmp/home/.codex/auth.json" 'PowerShell WSL script creates auth.json'
   assert_file "$tmp/home/.codex/.env" 'PowerShell WSL script creates Codex Desktop env file'
+  assert_file "$tmp/home/.codex/vibemode.env" 'PowerShell WSL script creates shell env file'
   assert_file "$tmp/home/.local/bin/responses-image" 'PowerShell WSL script installs image helper'
   if [[ -x "$tmp/home/.local/bin/responses-image" ]]; then
     pass 'PowerShell WSL image helper is executable'
@@ -1364,6 +1367,11 @@ test_desktop_powershell_wsl_embedded_script() {
   assert_contains "$tmp/home/.codex/.env" 'CODEX_KEY="test-api-key"' 'PowerShell WSL script writes Desktop CODEX_KEY env'
   assert_contains "$tmp/home/.codex/.env" 'OPENAI_API_KEY="test-api-key"' 'PowerShell WSL script writes Desktop OPENAI_API_KEY env'
   assert_contains "$tmp/home/.codex/.env" 'CODEX_API_KEY="test-api-key"' 'PowerShell WSL script writes Desktop CODEX_API_KEY env'
+  assert_contains "$tmp/home/.codex/vibemode.env" "export CODEX_HOME='$tmp/home/.codex'" 'PowerShell WSL script writes shell CODEX_HOME export'
+  assert_contains "$tmp/home/.codex/vibemode.env" "export CODEX_KEY='test-api-key'" 'PowerShell WSL script writes shell CODEX_KEY export'
+  assert_contains "$tmp/home/.codex/vibemode.env" "export OPENAI_API_KEY='test-api-key'" 'PowerShell WSL script writes shell OPENAI_API_KEY export'
+  assert_contains "$tmp/home/.codex/vibemode.env" "export CODEX_API_KEY='test-api-key'" 'PowerShell WSL script writes shell CODEX_API_KEY export'
+  assert_contains "$tmp/home/.profile" '.codex/vibemode.env' 'PowerShell WSL script wires shell startup'
   if [[ "$output" == *"codex_dir=$tmp/home/.codex"* && "$output" == *"home=$tmp/home"* && "$output" == *'user='* ]]; then
     pass 'PowerShell WSL script reports user home and config dir'
   else

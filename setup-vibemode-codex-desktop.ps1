@@ -1173,6 +1173,7 @@ function Install-WslConfig([string]$ApiKey) {
     $baseUrlB64 = To-Base64 $BaseUrl
     $modelB64 = To-Base64 $Model
     $effortB64 = To-Base64 $DefaultReasoningEffort
+    $apiKeyB64 = To-Base64 $ApiKey
     $authB64 = To-Base64 (Build-AuthBody $ApiKey)
     $desktopEnvB64 = To-Base64 (Build-DesktopEnvBody $ApiKey)
 
@@ -1192,10 +1193,16 @@ toml_escape() {
   printf '%s' "$value"
 }
 
+shell_escape() {
+  local value="$1"
+  printf "'%s'" "$(printf '%s' "$value" | sed "s/'/'\\\\''/g")"
+}
+
 provider="$(decode '__PROVIDER_B64__')"
 base_url="$(decode '__BASE_URL_B64__')"
 model="$(decode '__MODEL_B64__')"
 reasoning_effort="$(decode '__EFFORT_B64__')"
+api_key="$(decode '__API_KEY_B64__')"
 env_key='CODEX_KEY'
 auth_body_b64='__AUTH_B64__'
 desktop_env_body_b64='__DESKTOP_ENV_B64__'
@@ -1205,6 +1212,8 @@ codex_dir="$HOME/.codex"
 config_file="$codex_dir/config.toml"
 auth_file="$codex_dir/auth.json"
 desktop_env_file="$codex_dir/.env"
+shell_env_file="$codex_dir/vibemode.env"
+profile_file="$HOME/.profile"
 mkdir -p "$codex_dir"
 chmod 700 "$codex_dir"
 
@@ -1291,10 +1300,50 @@ build_config_body() {
   printf 'reasoning_effort = "%s"\n' "$escaped_effort"
 }
 
+build_shell_env_body() {
+  local escaped_key escaped_codex_dir
+  escaped_key="$(shell_escape "$api_key")"
+  escaped_codex_dir="$(shell_escape "$codex_dir")"
+  printf 'export CODEX_HOME=%s\n' "$escaped_codex_dir"
+  printf 'export %s=%s\n' "$env_key" "$escaped_key"
+  printf 'export OPENAI_API_KEY=%s\n' "$escaped_key"
+  printf 'export CODEX_API_KEY=%s\n' "$escaped_key"
+}
+
+write_shell_startup() {
+  local begin end quoted_env tmp body_b64
+  begin='# >>> vibemode codex >>>'
+  end='# <<< vibemode codex <<<'
+  quoted_env="$(shell_escape "$shell_env_file")"
+  tmp="$(mktemp "$codex_dir/profile.tmp.XXXXXX")"
+
+  if [[ -f "$profile_file" ]]; then
+    awk -v begin="$begin" -v end="$end" '
+      $0 == begin { skip = 1; next }
+      $0 == end { skip = 0; next }
+      !skip { print }
+    ' "$profile_file" > "$tmp"
+    [[ -s "$tmp" ]] && printf '\n' >> "$tmp"
+  fi
+
+  {
+    printf '%s\n' "$begin"
+    printf '[ -f %s ] && . %s\n' "$quoted_env" "$quoted_env"
+    printf '%s\n' "$end"
+  } >> "$tmp"
+
+  body_b64="$(base64 < "$tmp" | tr -d '\n')"
+  rm -f "$tmp"
+  write_if_changed "$profile_file" "$body_b64"
+}
+
 config_b64="$(build_config_body | base64 | tr -d '\n')"
+shell_env_b64="$(build_shell_env_body | base64 | tr -d '\n')"
 write_if_changed "$config_file" "$config_b64"
 write_if_changed "$auth_file" "$auth_body_b64"
 write_if_changed "$desktop_env_file" "$desktop_env_body_b64"
+write_if_changed "$shell_env_file" "$shell_env_b64"
+write_shell_startup
 
 if [[ -n "$helper_body_b64" ]]; then
   mkdir -p "$HOME/.local/bin"
@@ -1322,6 +1371,7 @@ printf 'home=%s\n' "$HOME"
     $wslScript = $wslScript.Replace('__BASE_URL_B64__', $baseUrlB64)
     $wslScript = $wslScript.Replace('__MODEL_B64__', $modelB64)
     $wslScript = $wslScript.Replace('__EFFORT_B64__', $effortB64)
+    $wslScript = $wslScript.Replace('__API_KEY_B64__', $apiKeyB64)
     $wslScript = $wslScript.Replace('__AUTH_B64__', $authB64)
     $wslScript = $wslScript.Replace('__DESKTOP_ENV_B64__', $desktopEnvB64)
     $wslScript = $wslScript.Replace('__HELPER_B64__', $helperB64)

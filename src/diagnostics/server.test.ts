@@ -32,6 +32,9 @@ test("session creation requires admin token when configured", async () => {
 
     const body = await allowed.json();
     expect(body.command).toContain("https://install.example.test/install.ps1");
+
+    const install = await app.request(body.installUrl);
+    expect(await install.text()).toContain("https://install.example.test/d.ps1");
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

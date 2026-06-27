@@ -17,6 +17,7 @@
   },
   "files": [
     "bin",
+    "d.ps1",
     "docs",
     "scripts/responses_image.py",
     "src/diagnostics",

@@ -12,7 +12,7 @@ type Env = {
 
 const DEFAULT_PORT = 8787;
 const DEFAULT_DB = ".vibemode-diagnostics.sqlite";
-const RAW_BOOTSTRAP_URL = "https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1";
+const BOOTSTRAP_FILE = "d.ps1";
 
 function psQuote(value: string): string {
   return `'${value.replace(/'/g, "''")}'`;
@@ -80,7 +80,7 @@ function Send-VibemodeBootstrapEvent([string]$Stage, [string]$Message) {
     }
 }
 Send-VibemodeBootstrapEvent "bootstrap_start" "Downloading Vibemode Windows bootstrap"
-$u = ${psQuote(RAW_BOOTSTRAP_URL)}
+$u = ${psQuote(`${base}/${BOOTSTRAP_FILE}`)}
 try {
     $script = (Invoke-WebRequest -UseBasicParsing -Headers @{ "Cache-Control" = "no-cache"; "Pragma" = "no-cache" } "$u?$(Get-Random)").Content
     Send-VibemodeBootstrapEvent "bootstrap_downloaded" "Downloaded d.ps1"
@@ -197,6 +197,17 @@ export function createApp(env: Env = {}) {
       .map((row) => `${row.id}\t${row.created_at}\t${row.level}\t${row.stage}\t${row.message}\t${row.data}`)
       .join("\n");
     return c.text(text + (text ? "\n" : ""));
+  });
+
+  app.get(`/${BOOTSTRAP_FILE}`, async (c) => {
+    const file = Bun.file(BOOTSTRAP_FILE);
+    if (!(await file.exists())) {
+      return c.text("Bootstrap file is missing.", 500);
+    }
+    return c.body(file, 200, {
+      "Content-Type": "text/plain; charset=utf-8",
+      "Cache-Control": "no-cache",
+    });
   });
 
   app.get("/install.ps1", (c) => {

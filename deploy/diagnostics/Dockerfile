@@ -6,6 +6,7 @@ ENV NODE_ENV=production
 COPY package.json bun.lock ./
 RUN bun install --frozen-lockfile --production
 
+COPY d.ps1 ./
 COPY src/diagnostics ./src/diagnostics
 
 CMD ["bun", "run", "diag:server"]

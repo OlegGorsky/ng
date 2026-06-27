@@ -88,7 +88,7 @@ curl -fsSL -H 'Cache-Control: no-cache' https://raw.githubusercontent.com/OlegGo
 $u='https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1'; iex (iwr -UseBasicParsing -Headers @{'Cache-Control'='no-cache'} "$u?$(Get-Random)").Content
 ```
 
-Windows-команда также попробует поставить Codex CLI: сначала через npm, а если npm не найден — через Node.js LTS через `winget` или официальный zip с `nodejs.org`.
+Windows-команда также попробует поставить или обновить Codex CLI до текущего npm-релиза: сначала через npm, а если npm не найден — через Node.js LTS через `winget` или официальный zip с `nodejs.org`.
 
 Если на Windows уже установлен и инициализирован WSL, эта же команда дополнительно пропишет Vibemode в default WSL-дистрибутив.
 

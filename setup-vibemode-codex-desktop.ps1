@@ -1073,9 +1073,7 @@ function Install-NodeForCodexCli {
 }
 
 function Install-CodexCli {
-    if (Test-CodexCli) {
-        return
-    }
+    $hadCodex = Test-CodexCli
 
     $npm = Get-NpmCommand
     if (-not $npm) {
@@ -1083,12 +1081,24 @@ function Install-CodexCli {
         $npm = Get-NpmCommand
     }
     if (-not $npm) {
-        Warn "Codex CLI не установлен: npm не найден. Установи Node.js LTS и запусти: npm install -g @openai/codex"
+        if ($hadCodex) {
+            Warn "Codex CLI найден, но обновить его не удалось: npm не найден. Установи Node.js LTS и запусти: npm install -g @openai/codex@latest"
+        } else {
+            Warn "Codex CLI не установлен: npm не найден. Установи Node.js LTS и запусти: npm install -g @openai/codex@latest"
+        }
         return
     }
 
-    Log "Codex CLI не найден. Ставлю @openai/codex через npm..."
-    & $npm.Source install -g @openai/codex
+    if ($hadCodex) {
+        Log "Codex CLI найден. Обновляю @openai/codex через npm..."
+    } else {
+        Log "Codex CLI не найден. Ставлю @openai/codex через npm..."
+    }
+    & $npm.Source install -g "@openai/codex@latest"
+    if ($LASTEXITCODE -ne 0) {
+        Warn "npm не смог поставить или обновить Codex CLI. Продолжаю настройку уже найденного Codex."
+        return
+    }
     if ($env:APPDATA) {
         Add-UserPathDir (Join-Path $env:APPDATA "npm")
     }

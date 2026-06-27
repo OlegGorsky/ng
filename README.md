@@ -141,6 +141,12 @@ VIBEMODE_PUBLIC_BASE_URL=https://your-domain.example PORT=8787 bun run diag:serv
 curl -s -X POST https://your-domain.example/api/sessions
 ```
 
+Если задан `VIBEMODE_DIAG_ADMIN_TOKEN`, добавь заголовок:
+
+```bash
+curl -s -X POST -H "x-admin-token: $VIBEMODE_DIAG_ADMIN_TOKEN" https://your-domain.example/api/sessions
+```
+
 Ответ вернёт `command`. Её нужно отправить пользователю в PowerShell. Смотреть лог:
 
 ```bash

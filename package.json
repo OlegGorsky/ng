@@ -27,7 +27,7 @@
   ],
   "scripts": {
     "diag:server": "bun run src/diagnostics/server.ts",
-    "diag:test": "bun test src/diagnostics/redact.test.ts",
+    "diag:test": "bun test src/diagnostics/*.test.ts",
     "test": "bash tests/run.sh"
   },
   "dependencies": {

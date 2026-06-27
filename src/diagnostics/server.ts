@@ -112,6 +112,9 @@ export function createApp(env: Env = {}) {
   app.get("/healthz", (c) => c.json({ ok: true }));
 
   app.post("/api/sessions", async (c) => {
+    if (!requireAdmin(c, adminToken)) {
+      return c.json({ error: "admin_token_required" }, 403);
+    }
     let body: any = {};
     try {
       body = await c.req.json();

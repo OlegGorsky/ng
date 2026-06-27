@@ -12,6 +12,7 @@ PACKAGE_JSON="$ROOT_DIR/package.json"
 CLI="$ROOT_DIR/bin/vibemode.js"
 DIAG_SERVER="$ROOT_DIR/src/diagnostics/server.ts"
 DIAG_REDACT="$ROOT_DIR/src/diagnostics/redact.ts"
+DIAG_DOCKERFILE="$ROOT_DIR/deploy/diagnostics/Dockerfile"
 
 PASS_COUNT=0
 FAIL_COUNT=0
@@ -1343,6 +1344,10 @@ test_desktop_powershell_static_checks() {
   assert_contains "$DIAG_SERVER" 'bun:sqlite' 'diagnostics server uses Bun SQLite'
   assert_contains "$DIAG_SERVER" '/api/sessions' 'diagnostics server exposes session API'
   assert_contains "$DIAG_SERVER" '/install.ps1' 'diagnostics server serves terminal PowerShell installer'
+  assert_contains "$DIAG_SERVER" '/linux.sh' 'diagnostics server serves Linux installer'
+  assert_contains "$DIAG_SERVER" '/termux.sh' 'diagnostics server serves Termux installer'
+  assert_contains "$DIAG_DOCKERFILE" 'COPY setup-vibemode-codex-desktop.sh' 'diagnostics Docker image ships desktop bash setup'
+  assert_contains "$DIAG_DOCKERFILE" 'COPY setup-vibemode-codex-termux.sh' 'diagnostics Docker image ships Termux setup'
   assert_contains "$DIAG_REDACT" 'redactForLog' 'diagnostics server redacts events before storing them'
   assert_contains "$DIAG_REDACT" 'OPENAI_API_KEY' 'diagnostics redaction knows Codex API env names'
 

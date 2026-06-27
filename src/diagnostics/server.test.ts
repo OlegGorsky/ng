@@ -33,10 +33,35 @@ test("session creation requires admin token when configured", async () => {
     const body = await allowed.json();
     expect(body.command).toContain("https://install.example.test/install.ps1");
 
+    const page = await app.request("/");
+    expect(page.status).toBe(200);
+    const html = await page.text();
+    expect(html).toContain("$u=&#39;https://install.example.test/install.ps1?sid=");
+    expect(html).toContain("curl -fsSL &#39;https://install.example.test/linux.sh?sid=");
+    expect(html).toContain("curl -fsSL &#39;https://install.example.test/termux.sh?sid=");
+    expect(html).toContain("/events?token=");
+
     const install = await app.request(body.installUrl);
     const installText = await install.text();
     expect(installText).toContain("https://install.example.test/setup.ps1");
     expect(installText).not.toContain("https://install.example.test/d.ps1");
+
+    const linux = await app.request(`/linux.sh?sid=${body.id}&token=${body.token}`);
+    expect(linux.status).toBe(200);
+    const linuxText = await linux.text();
+    expect(linuxText).toContain("VIBEMODE_SESSION_ID");
+    expect(linuxText).toContain("https://install.example.test/setup-desktop.sh");
+    expect(linuxText).toContain("bootstrap_failed");
+
+    const termux = await app.request(`/termux.sh?sid=${body.id}&token=${body.token}`);
+    expect(termux.status).toBe(200);
+    const termuxText = await termux.text();
+    expect(termuxText).toContain("VIBEMODE_SESSION_ID");
+    expect(termuxText).toContain("https://install.example.test/setup-termux.sh");
+    expect(termuxText).toContain("bootstrap_failed");
+
+    const tokenEvents = await app.request(`/api/sessions/${body.id}/events?token=${body.token}`);
+    expect(tokenEvents.status).toBe(200);
 
     const short = await app.request("/i");
     expect(short.status).toBe(200);
@@ -55,6 +80,14 @@ test("session creation requires admin token when configured", async () => {
     const imageHelper = await app.request("/responses-image.py");
     expect(imageHelper.status).toBe(200);
     expect(await imageHelper.text()).toContain("Responses API image_generation");
+
+    const desktopSetup = await app.request("/setup-desktop.sh");
+    expect(desktopSetup.status).toBe(200);
+    expect(await desktopSetup.text()).toContain("Codex Desktop");
+
+    const termuxSetup = await app.request("/setup-termux.sh");
+    expect(termuxSetup.status).toBe(200);
+    expect(await termuxSetup.text()).toContain("Termux");
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

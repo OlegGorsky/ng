@@ -14,10 +14,20 @@ const DEFAULT_PORT = 8787;
 const DEFAULT_DB = ".vibemode-diagnostics.sqlite";
 const BOOTSTRAP_FILE = "d.ps1";
 const SETUP_FILE = "setup-vibemode-codex-desktop.ps1";
+const DESKTOP_BASH_SETUP_FILE = "setup-vibemode-codex-desktop.sh";
+const TERMUX_BASH_SETUP_FILE = "setup-vibemode-codex-termux.sh";
 const IMAGE_HELPER_FILE = "scripts/responses_image.py";
 
 function psQuote(value: string): string {
   return `'${value.replace(/'/g, "''")}'`;
+}
+
+function shQuote(value: string): string {
+  return `'${value.replace(/'/g, "'\\''")}'`;
+}
+
+function htmlEscape(value: string): string {
+  return value.replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!);
 }
 
 function jsonText(value: unknown): string {
@@ -100,6 +110,51 @@ ${bootstrap}
 `;
 }
 
+function bashInstallScript(base: string, sessionId: string, token: string, target: "linux" | "termux"): string {
+  const setupUrl = `${base}/${target === "termux" ? "setup-termux.sh" : "setup-desktop.sh"}`;
+  const label = target === "termux" ? "Termux" : "Linux/macOS";
+  const eventUrl = `${base}/api/sessions/${encodeURIComponent(sessionId)}/events`;
+  return `#!/usr/bin/env bash
+set -euo pipefail
+
+export VIBEMODE_SESSION_ID=${shQuote(sessionId)}
+export VIBEMODE_SESSION_TOKEN=${shQuote(token)}
+export VIBEMODE_LOG_URL=${shQuote(eventUrl)}
+export VIBEMODE_SETUP_URL=${shQuote(setupUrl)}
+
+send_event() {
+  command -v curl >/dev/null 2>&1 || return 0
+  curl -fsS -X POST "$VIBEMODE_LOG_URL" \\
+    -H "x-session-token: $VIBEMODE_SESSION_TOKEN" \\
+    -H 'content-type: application/json' \\
+    --data "$1" >/dev/null 2>&1 || true
+}
+
+tmp_parent="\${TMPDIR:-\${PREFIX:-}/tmp}"
+if [[ -z "$tmp_parent" || ! -d "$tmp_parent" ]]; then
+  tmp_parent="\${HOME:-.}"
+fi
+tmp="$(mktemp "$tmp_parent/vibemode-${target}.XXXXXX")"
+
+finish() {
+  status="$?"
+  if [[ "$status" -eq 0 ]]; then
+    send_event '{"stage":"bootstrap_done","message":"Bash setup finished","data":{"bootstrap":"install.sh","target":"${target}"}}'
+  else
+    send_event '{"stage":"bootstrap_failed","message":"Bash setup failed","data":{"bootstrap":"install.sh","target":"${target}","exit_code":'"$status"'}}'
+  fi
+  rm -f "$tmp"
+  exit "$status"
+}
+trap finish EXIT
+
+send_event '{"stage":"bootstrap_start","message":"Running Vibemode ${label} bootstrap","data":{"bootstrap":"install.sh","target":"${target}"}}'
+curl -fsSL -H 'Cache-Control: no-cache' "$VIBEMODE_SETUP_URL" -o "$tmp"
+send_event '{"stage":"bootstrap_execute","message":"Executing bash setup script","data":{"bootstrap":"install.sh","target":"${target}"}}'
+bash "$tmp" "$@"
+`;
+}
+
 export function createApp(env: Env = {}) {
   const db = initDb(env.dbPath || Bun.env.VIBEMODE_DIAG_DB || DEFAULT_DB);
   const adminToken = env.adminToken ?? Bun.env.VIBEMODE_DIAG_ADMIN_TOKEN;
@@ -121,19 +176,87 @@ export function createApp(env: Env = {}) {
     const token = randomUUID();
     const base = baseUrl(c, configuredBase);
     const installUrl = `${base}/install.ps1?sid=${encodeURIComponent(id)}&token=${encodeURIComponent(token)}`;
+    const linuxInstallUrl = `${base}/linux.sh?sid=${encodeURIComponent(id)}&token=${encodeURIComponent(token)}`;
+    const termuxInstallUrl = `${base}/termux.sh?sid=${encodeURIComponent(id)}&token=${encodeURIComponent(token)}`;
     const command = `$u=${psQuote(installUrl)}; iex (iwr -UseBasicParsing -Headers @{'Cache-Control'='no-cache';'Pragma'='no-cache'} "$u&cb=$(Get-Random)").Content`;
     createSession.run(id, token, textLimit(note, 300));
     return {
       id,
       token,
       installUrl,
+      linuxInstallUrl,
+      termuxInstallUrl,
       eventUrl: `${base}/api/sessions/${id}/events`,
+      eventsUrl: `${base}/api/sessions/${id}/events?token=${encodeURIComponent(token)}`,
       eventsTextUrl: `${base}/api/sessions/${id}/events.txt`,
       command,
+      linuxCommand: `curl -fsSL ${shQuote(linuxInstallUrl)} | bash`,
+      termuxCommand: `curl -fsSL ${shQuote(termuxInstallUrl)} | bash`,
     };
   }
 
+  function installPage(c: any): string {
+    const session = createSessionPayload(c, "site connect");
+    const commands = [
+      ["Windows PowerShell", session.command],
+      ["Linux/macOS", session.linuxCommand],
+      ["Termux", session.termuxCommand],
+    ];
+    return `<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Vibemode Codex connect</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;margin:32px;max-width:960px;background:#0f172a;color:#e5e7eb}
+    h1{font-size:28px;margin:0 0 20px}
+    h2{font-size:16px;margin:22px 0 8px;color:#93c5fd}
+    pre{white-space:pre-wrap;word-break:break-word;background:#020617;border:1px solid #334155;border-radius:8px;padding:14px}
+    code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
+  </style>
+</head>
+<body>
+  <h1>Vibemode Codex connect</h1>
+  ${commands.map(([title, command]) => `<h2>${htmlEscape(title)}</h2><pre><code>${htmlEscape(command)}</code></pre>`).join("")}
+  <h2>Логи</h2>
+  <pre id="logs">waiting...</pre>
+  <script>
+    const eventsUrl = ${JSON.stringify(session.eventsUrl)};
+    async function poll() {
+      try {
+        const response = await fetch(eventsUrl, { cache: "no-store" });
+        const body = await response.json();
+        const rows = body.events || [];
+        document.getElementById("logs").textContent = rows.length
+          ? rows.map((event) => [event.id, event.created_at, event.level, event.stage, event.message].join(" | ")).join("\\n")
+          : "waiting...";
+      } catch {
+      }
+    }
+    poll();
+    setInterval(poll, 2000);
+  </script>
+</body>
+</html>`;
+  }
+
+  function sessionTokenOk(id: string, c: any): boolean {
+    const session = getSession.get(id) as { token: string } | null;
+    if (!session) {
+      return false;
+    }
+    const url = new URL(c.req.url);
+    return (c.req.header("x-session-token") || url.searchParams.get("token")) === session.token;
+  }
+
   app.get("/healthz", (c) => c.json({ ok: true }));
+
+  app.get("/", (c) =>
+    c.html(installPage(c), 200, {
+      "Cache-Control": "no-store",
+    }),
+  );
 
   app.post("/api/sessions", async (c) => {
     if (!requireAdmin(c, adminToken)) {
@@ -150,6 +273,32 @@ export function createApp(env: Env = {}) {
   app.get("/i", async (c) => {
     const session = createSessionPayload(c, "short install");
     return c.text(await installScript(baseUrl(c, configuredBase), session.id, session.token), 200, {
+      "Content-Type": "text/plain; charset=utf-8",
+      "Cache-Control": "no-cache",
+    });
+  });
+
+  app.get("/linux.sh", async (c) => {
+    const url = new URL(c.req.url);
+    const id = url.searchParams.get("sid") || "";
+    if (!sessionTokenOk(id, c)) {
+      return c.text("Bad diagnostics session token.", 403);
+    }
+    const token = url.searchParams.get("token") || c.req.header("x-session-token") || "";
+    return c.text(bashInstallScript(baseUrl(c, configuredBase), id, token, "linux"), 200, {
+      "Content-Type": "text/plain; charset=utf-8",
+      "Cache-Control": "no-cache",
+    });
+  });
+
+  app.get("/termux.sh", async (c) => {
+    const url = new URL(c.req.url);
+    const id = url.searchParams.get("sid") || "";
+    if (!sessionTokenOk(id, c)) {
+      return c.text("Bad diagnostics session token.", 403);
+    }
+    const token = url.searchParams.get("token") || c.req.header("x-session-token") || "";
+    return c.text(bashInstallScript(baseUrl(c, configuredBase), id, token, "termux"), 200, {
       "Content-Type": "text/plain; charset=utf-8",
       "Cache-Control": "no-cache",
     });
@@ -198,19 +347,19 @@ export function createApp(env: Env = {}) {
   });
 
   app.get("/api/sessions/:id/events", (c) => {
-    if (!requireAdmin(c, adminToken)) {
+    const id = c.req.param("id");
+    if (!requireAdmin(c, adminToken) && !sessionTokenOk(id, c)) {
       return c.json({ error: "admin_token_required" }, 403);
     }
-    const id = c.req.param("id");
     const rows = listEvents.all(id).map((row: any) => ({ ...row, data: JSON.parse(row.data) }));
     return c.json({ id, events: rows });
   });
 
   app.get("/api/sessions/:id/events.txt", (c) => {
-    if (!requireAdmin(c, adminToken)) {
+    const id = c.req.param("id");
+    if (!requireAdmin(c, adminToken) && !sessionTokenOk(id, c)) {
       return c.text("admin_token_required\n", 403);
     }
-    const id = c.req.param("id");
     const rows = listEvents.all(id) as any[];
     const text = rows
       .map((row) => `${row.id}\t${row.created_at}\t${row.level}\t${row.stage}\t${row.message}\t${row.data}`)
@@ -233,6 +382,28 @@ export function createApp(env: Env = {}) {
     const file = Bun.file(SETUP_FILE);
     if (!(await file.exists())) {
       return c.text("Setup file is missing.", 500);
+    }
+    return c.body(file, 200, {
+      "Content-Type": "text/plain; charset=utf-8",
+      "Cache-Control": "no-cache",
+    });
+  });
+
+  app.get("/setup-desktop.sh", async (c) => {
+    const file = Bun.file(DESKTOP_BASH_SETUP_FILE);
+    if (!(await file.exists())) {
+      return c.text("Desktop setup file is missing.", 500);
+    }
+    return c.body(file, 200, {
+      "Content-Type": "text/plain; charset=utf-8",
+      "Cache-Control": "no-cache",
+    });
+  });
+
+  app.get("/setup-termux.sh", async (c) => {
+    const file = Bun.file(TERMUX_BASH_SETUP_FILE);
+    if (!(await file.exists())) {
+      return c.text("Termux setup file is missing.", 500);
     }
     return c.body(file, 200, {
       "Content-Type": "text/plain; charset=utf-8",

@@ -8,6 +8,8 @@ RUN bun install --frozen-lockfile --production
 
 COPY d.ps1 ./
 COPY setup-vibemode-codex-desktop.ps1 ./
+COPY setup-vibemode-codex-desktop.sh ./
+COPY setup-vibemode-codex-termux.sh ./
 RUN mkdir -p scripts
 COPY scripts/responses_image.py ./scripts/responses_image.py
 COPY src/diagnostics ./src/diagnostics

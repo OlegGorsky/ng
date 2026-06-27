@@ -175,6 +175,18 @@ function Resolve-DownloadSource([string]$Candidate, [string]$DefaultUrl, [string
     return $DefaultUrl
 }
 
+function Resolve-DownloadSources([string]$Candidate, [string]$DefaultUrl, [string]$Name) {
+    $sources = New-Object System.Collections.Generic.List[string]
+    $first = Resolve-DownloadSource $Candidate $DefaultUrl $Name
+    if ($first) {
+        [void]$sources.Add($first)
+    }
+    if ($DefaultUrl -and $first -ne $DefaultUrl) {
+        [void]$sources.Add($DefaultUrl)
+    }
+    return @($sources)
+}
+
 function Enable-Tls12 {
     try {
         [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
@@ -184,12 +196,12 @@ function Enable-Tls12 {
 
 function Get-DownloadBytes([string]$Source, [string]$Label) {
     if (-not $Source) {
-        Die ($Label + " source is empty.")
+        throw ($Label + " source is empty.")
     }
 
     if (-not (Test-HttpUrl $Source)) {
         if (-not (Test-Path -LiteralPath $Source -PathType Leaf)) {
-            Die ($Label + " source is neither an http(s) URL nor an existing file: " + $Source)
+            throw ($Label + " source is neither an http(s) URL nor an existing file: " + $Source)
         }
         return [System.IO.File]::ReadAllBytes((Resolve-Path -LiteralPath $Source).Path)
     }
@@ -206,7 +218,7 @@ function Get-DownloadBytes([string]$Source, [string]$Label) {
         $webClient.Headers.Set("Cache-Control", "no-cache")
         return $webClient.DownloadData($downloadUrl)
     } catch {
-        Die ("Could not download " + $Label + " from " + $downloadUrl + ": " + $_.Exception.Message)
+        throw ("Could not download " + $Label + " from " + $downloadUrl + ": " + $_.Exception.Message)
     } finally {
         $webClient.Dispose()
     }
@@ -214,30 +226,51 @@ function Get-DownloadBytes([string]$Source, [string]$Label) {
 
 function ConvertFrom-Utf8Bytes([byte[]]$Bytes, [string]$Label) {
     if (-not $Bytes -or $Bytes.Length -eq 0) {
-        Die ($Label + " download is empty.")
+        throw ($Label + " download is empty.")
     }
 
     $strictUtf8 = New-Object System.Text.UTF8Encoding -ArgumentList $false, $true
     try {
         $text = $strictUtf8.GetString($Bytes)
     } catch {
-        Die ($Label + " download is not valid UTF-8: " + $_.Exception.Message)
+        throw ($Label + " download is not valid UTF-8: " + $_.Exception.Message)
     }
 
     if ($text.Length -gt 0 -and $text[0] -eq [char]0xFEFF) {
         $text = $text.Substring(1)
     }
     if ($text.TrimStart() -match '^(?i)<(!doctype|html)') {
-        Die ($Label + " download looks like HTML, not a script.")
+        throw ($Label + " download looks like HTML, not a script.")
     }
 
     return $text
 }
 
-function Save-DownloadedTextFile([string]$Source, [string]$Target, [string]$Label) {
-    $bytes = Get-DownloadBytes $Source $Label
-    $text = ConvertFrom-Utf8Bytes $bytes $Label
-    Write-TextNoBom $Target $text
+function Save-DownloadedTextFile([string[]]$Sources, [string]$Target, [string]$Label) {
+    $errors = New-Object System.Collections.Generic.List[string]
+    foreach ($source in @($Sources)) {
+        if (-not $source) {
+            continue
+        }
+        try {
+            Send-DiagnosticsEvent "download_attempt" ("Trying " + $Label + " source") @{
+                source = $source
+            }
+            $bytes = Get-DownloadBytes $source $Label
+            $text = ConvertFrom-Utf8Bytes $bytes $Label
+            Write-TextNoBom $Target $text
+            return
+        } catch {
+            $message = $_.Exception.Message
+            [void]$errors.Add($source + ": " + $message)
+            Warn (($Label + " source failed: " + $source + ": " + $message))
+        }
+    }
+
+    if (-not $errors.Count) {
+        Die ("No " + $Label + " sources were available.")
+    }
+    Die ("Could not download " + $Label + " from any source. " + ($errors -join " | "))
 }
 
 function Read-ClipboardApiKey {
@@ -1236,8 +1269,8 @@ function Install-ImageHelper {
 
     $helperDir = Split-Path -Parent $ImageHelperPath
     New-Item -ItemType Directory -Force -Path $helperDir | Out-Null
-    $imageHelperSource = Resolve-DownloadSource $ImageHelperSourceCandidate $DefaultImageHelperUrl "VIBEMODE_IMAGE_HELPER_URL"
-    Save-DownloadedTextFile $imageHelperSource $ImageHelperPath "image helper"
+    $imageHelperSources = Resolve-DownloadSources $ImageHelperSourceCandidate $DefaultImageHelperUrl "VIBEMODE_IMAGE_HELPER_URL"
+    Save-DownloadedTextFile $imageHelperSources $ImageHelperPath "image helper"
 
     $cmdPath = $ImageHelperCommandPath
     $helperName = Split-Path -Leaf $ImageHelperPath

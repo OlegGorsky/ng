@@ -460,6 +460,18 @@ function Resolve-SetupSource([string]$Candidate, [string]$DefaultUrl) {
     return $DefaultUrl
 }
 
+function Resolve-SetupSourceCandidates([string]$Candidate, [string]$DefaultUrl) {
+    $sources = New-Object System.Collections.Generic.List[string]
+    $first = Resolve-SetupSource $Candidate $DefaultUrl
+    if ($first) {
+        [void]$sources.Add($first)
+    }
+    if ($DefaultUrl -and $first -ne $DefaultUrl) {
+        [void]$sources.Add($DefaultUrl)
+    }
+    return @($sources)
+}
+
 function Enable-Tls12 {
     try {
         [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor [System.Net.SecurityProtocolType]::Tls12
@@ -519,11 +531,35 @@ function ConvertFrom-SetupBytes([byte[]]$Bytes) {
     return $text
 }
 
-function Save-SetupScript([string]$Url, [string]$Path) {
-    $bytes = Get-SetupBytes $Url
-    $text = ConvertFrom-SetupBytes $bytes
-    $utf8Bom = New-Object System.Text.UTF8Encoding -ArgumentList $true
-    [System.IO.File]::WriteAllText($Path, $text, $utf8Bom)
+function Save-SetupScript([string[]]$Sources, [string]$Path) {
+    $errors = New-Object System.Collections.Generic.List[string]
+    foreach ($setupSource in @($Sources)) {
+        if (-not $setupSource) {
+            continue
+        }
+        try {
+            Send-DiagnosticsEvent "repair_bootstrap_download_attempt" "Trying setup source" @{
+                setup_source = $setupSource
+            }
+            $bytes = Get-SetupBytes $setupSource
+            $text = ConvertFrom-SetupBytes $bytes
+            $utf8Bom = New-Object System.Text.UTF8Encoding -ArgumentList $true
+            [System.IO.File]::WriteAllText($Path, $text, $utf8Bom)
+            return $setupSource
+        } catch {
+            $message = $_.Exception.Message
+            [void]$errors.Add($setupSource + ": " + $message)
+            Write-Warning ("Setup source failed: " + $setupSource + ": " + $message)
+            Send-DiagnosticsEvent "repair_bootstrap_download_failed" $message @{
+                setup_source = $setupSource
+            } "warn"
+        }
+    }
+
+    if (-not $errors.Count) {
+        throw "No Vibemode setup sources were available."
+    }
+    throw ("All Vibemode setup sources failed: " + ($errors -join " | "))
 }
 
 function Test-SetupScriptSyntax([string]$Path) {
@@ -564,12 +600,13 @@ try {
     Send-DiagnosticsEvent "repair_bootstrap_start" "Starting Vibemode Windows bootstrap" @{
         setup_source = $setupUrlCandidate
     }
-    $setupUrl = Resolve-SetupSource $setupUrlCandidate $defaultSetupUrl
+    $setupSources = Resolve-SetupSourceCandidates $setupUrlCandidate $defaultSetupUrl
     Send-DiagnosticsEvent "repair_bootstrap_resolved" "Resolved setup source" @{
-        setup_source = $setupUrl
+        setup_sources = @($setupSources)
     }
-    Save-SetupScript $setupUrl $tmp
+    $setupUrl = Save-SetupScript $setupSources $tmp
     Send-DiagnosticsEvent "repair_bootstrap_downloaded" "Downloaded setup script" @{
+        setup_source = $setupUrl
         temp_file = $tmp
     }
     Test-SetupScriptSyntax $tmp

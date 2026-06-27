@@ -13,6 +13,8 @@ type Env = {
 const DEFAULT_PORT = 8787;
 const DEFAULT_DB = ".vibemode-diagnostics.sqlite";
 const BOOTSTRAP_FILE = "d.ps1";
+const SETUP_FILE = "setup-vibemode-codex-desktop.ps1";
+const IMAGE_HELPER_FILE = "scripts/responses_image.py";
 
 function psQuote(value: string): string {
   return `'${value.replace(/'/g, "''")}'`;
@@ -66,12 +68,25 @@ function initDb(path: string): Database {
   return db;
 }
 
-function installScript(base: string, sessionId: string, token: string): string {
+async function readTextFile(path: string, label: string): Promise<string> {
+  const file = Bun.file(path);
+  if (!(await file.exists())) {
+    throw new Error(`${label} file is missing.`);
+  }
+  return file.text();
+}
+
+async function installScript(base: string, sessionId: string, token: string): Promise<string> {
   const eventUrl = `${base}/api/sessions/${encodeURIComponent(sessionId)}/events`;
+  const setupUrl = `${base}/setup.ps1`;
+  const imageHelperUrl = `${base}/responses-image.py`;
+  const bootstrap = await readTextFile(BOOTSTRAP_FILE, "Bootstrap");
   return `$ErrorActionPreference = "Stop"
 $env:VIBEMODE_SESSION_ID = ${psQuote(sessionId)}
 $env:VIBEMODE_SESSION_TOKEN = ${psQuote(token)}
 $env:VIBEMODE_LOG_URL = ${psQuote(eventUrl)}
+$env:VIBEMODE_CODEX_DESKTOP_SETUP_URL = ${psQuote(setupUrl)}
+$env:VIBEMODE_IMAGE_HELPER_URL = ${psQuote(imageHelperUrl)}
 function Send-VibemodeBootstrapEvent([string]$Stage, [string]$Message) {
     try {
         $body = @{ stage = $Stage; message = $Message; data = @{ bootstrap = "install.ps1" } } | ConvertTo-Json -Compress -Depth 4
@@ -79,17 +94,9 @@ function Send-VibemodeBootstrapEvent([string]$Stage, [string]$Message) {
     } catch {
     }
 }
-Send-VibemodeBootstrapEvent "bootstrap_start" "Downloading Vibemode Windows bootstrap"
-$u = ${psQuote(`${base}/${BOOTSTRAP_FILE}`)}
-try {
-    $script = (Invoke-WebRequest -UseBasicParsing -Headers @{ "Cache-Control" = "no-cache"; "Pragma" = "no-cache" } "$u?$(Get-Random)").Content
-    Send-VibemodeBootstrapEvent "bootstrap_downloaded" "Downloaded d.ps1"
-    Invoke-Expression $script
-    Send-VibemodeBootstrapEvent "bootstrap_done" "Bootstrap finished"
-} catch {
-    Send-VibemodeBootstrapEvent "bootstrap_error" $_.Exception.Message
-    throw
-}
+Send-VibemodeBootstrapEvent "bootstrap_start" "Running inline Vibemode Windows bootstrap"
+
+${bootstrap}
 `;
 }
 
@@ -140,9 +147,9 @@ export function createApp(env: Env = {}) {
     return c.json(createSessionPayload(c, body.note));
   });
 
-  app.get("/i", (c) => {
+  app.get("/i", async (c) => {
     const session = createSessionPayload(c, "short install");
-    return c.text(installScript(baseUrl(c, configuredBase), session.id, session.token), 200, {
+    return c.text(await installScript(baseUrl(c, configuredBase), session.id, session.token), 200, {
       "Content-Type": "text/plain; charset=utf-8",
       "Cache-Control": "no-cache",
     });
@@ -222,7 +229,29 @@ export function createApp(env: Env = {}) {
     });
   });
 
-  app.get("/install.ps1", (c) => {
+  app.get("/setup.ps1", async (c) => {
+    const file = Bun.file(SETUP_FILE);
+    if (!(await file.exists())) {
+      return c.text("Setup file is missing.", 500);
+    }
+    return c.body(file, 200, {
+      "Content-Type": "text/plain; charset=utf-8",
+      "Cache-Control": "no-cache",
+    });
+  });
+
+  app.get("/responses-image.py", async (c) => {
+    const file = Bun.file(IMAGE_HELPER_FILE);
+    if (!(await file.exists())) {
+      return c.text("Image helper file is missing.", 500);
+    }
+    return c.body(file, 200, {
+      "Content-Type": "text/plain; charset=utf-8",
+      "Cache-Control": "no-cache",
+    });
+  });
+
+  app.get("/install.ps1", async (c) => {
     const url = new URL(c.req.url);
     const id = url.searchParams.get("sid") || "";
     const token = url.searchParams.get("token") || "";
@@ -233,7 +262,7 @@ export function createApp(env: Env = {}) {
     if (token !== session.token) {
       return c.text("Bad diagnostics session token.", 403);
     }
-    return c.text(installScript(baseUrl(c, configuredBase), id, token), 200, {
+    return c.text(await installScript(baseUrl(c, configuredBase), id, token), 200, {
       "Content-Type": "text/plain; charset=utf-8",
     });
   });

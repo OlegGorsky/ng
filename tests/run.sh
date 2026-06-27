@@ -1214,8 +1214,10 @@ test_desktop_powershell_static_checks() {
   assert_not_contains_file "$DESKTOP_PS" '$lines.Add("reasoning_effort' 'PowerShell setup does not write legacy profile reasoning key'
   assert_contains "$DESKTOP_PS" 'Get-Clipboard' 'PowerShell setup reads clipboard when requested'
   assert_contains "$DESKTOP_PS" '$DefaultImageHelperUrl' 'PowerShell setup has a default image helper URL'
-  assert_contains "$DESKTOP_PS" 'Resolve-DownloadSource $ImageHelperSourceCandidate $DefaultImageHelperUrl "VIBEMODE_IMAGE_HELPER_URL"' 'PowerShell setup resolves image helper source before download'
-  assert_contains "$DESKTOP_PS" 'Save-DownloadedTextFile $imageHelperSource $ImageHelperPath "image helper"' 'PowerShell setup downloads image helper through hardened downloader'
+  assert_contains "$DESKTOP_PS" 'function Resolve-DownloadSource' 'PowerShell setup can resolve one image helper source'
+  assert_contains "$DESKTOP_PS" 'Resolve-DownloadSources $ImageHelperSourceCandidate $DefaultImageHelperUrl "VIBEMODE_IMAGE_HELPER_URL"' 'PowerShell setup builds fallback image helper sources'
+  assert_contains "$DESKTOP_PS" 'foreach ($source in @($Sources))' 'PowerShell setup tries image helper sources in order'
+  assert_contains "$DESKTOP_PS" 'Save-DownloadedTextFile $imageHelperSources $ImageHelperPath "image helper"' 'PowerShell setup downloads image helper through hardened fallback downloader'
   assert_contains "$DESKTOP_PS" 'Ignoring invalid " + $Name + " value' 'PowerShell setup ignores invalid download source overrides'
   assert_contains "$DESKTOP_PS" '$Url + "?cb=" + $cacheBust' 'PowerShell setup appends cache-bust query by concatenation'
   assert_contains "$DESKTOP_PS" '$webClient.Headers.Set("Cache-Control", "no-cache")' 'PowerShell setup asks raw GitHub to revalidate downloads'
@@ -1271,7 +1273,10 @@ test_desktop_powershell_static_checks() {
   assert_not_contains_file "$DESKTOP_BOOTSTRAP_PS" '-like "*?*"' 'PowerShell bootstrap does not use wildcard query detection'
   assert_contains "$DESKTOP_BOOTSTRAP_PS" '$Url + "?cb=" + $cacheBust' 'PowerShell bootstrap appends cache-bust query by concatenation'
   assert_not_contains_file "$DESKTOP_BOOTSTRAP_PS" '$Url?cb=$cacheBust' 'PowerShell bootstrap does not interpolate URL before ?cb'
-  assert_contains "$DESKTOP_BOOTSTRAP_PS" 'Resolve-SetupSource $setupUrlCandidate $defaultSetupUrl' 'PowerShell bootstrap resolves setup source before download'
+  assert_contains "$DESKTOP_BOOTSTRAP_PS" 'function Resolve-SetupSource' 'PowerShell bootstrap can resolve one setup source'
+  assert_contains "$DESKTOP_BOOTSTRAP_PS" 'Resolve-SetupSourceCandidates $setupUrlCandidate $defaultSetupUrl' 'PowerShell bootstrap builds fallback setup sources'
+  assert_contains "$DESKTOP_BOOTSTRAP_PS" 'foreach ($setupSource in @($Sources))' 'PowerShell bootstrap tries setup sources in order'
+  assert_contains "$DESKTOP_BOOTSTRAP_PS" 'All Vibemode setup sources failed' 'PowerShell bootstrap reports when every setup source fails'
   assert_contains "$DESKTOP_BOOTSTRAP_PS" 'Ignoring invalid VIBEMODE_CODEX_DESKTOP_SETUP_URL value' 'PowerShell bootstrap ignores invalid setup URL overrides'
   assert_contains "$DESKTOP_BOOTSTRAP_PS" 'Vibemode setup source is neither an http(s) URL nor an existing file' 'PowerShell bootstrap rejects non-URL non-file setup sources'
   assert_contains "$DESKTOP_BOOTSTRAP_PS" 'Test-Path -LiteralPath $value -PathType Leaf' 'PowerShell bootstrap accepts existing local setup override files'
@@ -1480,7 +1485,7 @@ test_desktop_powershell_bootstrap_url_resolution() {
 
   if output="$(PS_BOOTSTRAP_PATH="$DESKTOP_BOOTSTRAP_PS" pwsh -NoProfile -Command '
     $script = Get-Content -Raw $env:PS_BOOTSTRAP_PATH
-    $marker = "try {`n    `$setupUrl = Resolve-SetupSource"
+    $marker = "try {`n    Send-DiagnosticsEvent `"repair_bootstrap_start`""
     $idx = $script.IndexOf($marker)
     if ($idx -lt 0) { throw "bootstrap execution marker not found" }
     Invoke-Expression $script.Substring(0, $idx)

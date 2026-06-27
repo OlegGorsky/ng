@@ -35,6 +35,12 @@ test("session creation requires admin token when configured", async () => {
 
     const install = await app.request(body.installUrl);
     expect(await install.text()).toContain("https://install.example.test/d.ps1");
+
+    const short = await app.request("/i");
+    expect(short.status).toBe(200);
+    const shortText = await short.text();
+    expect(shortText).toContain("$env:VIBEMODE_SESSION_ID");
+    expect(shortText).toContain("https://install.example.test/d.ps1");
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

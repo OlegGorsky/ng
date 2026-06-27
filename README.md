@@ -149,6 +149,12 @@ curl -s -X POST -H "x-admin-token: $VIBEMODE_DIAG_ADMIN_TOKEN" https://your-doma
 
 Ответ вернёт `command`. Её нужно отправить пользователю в PowerShell. Смотреть лог:
 
+Короткая команда без `sid/token` в ссылке:
+
+```powershell
+irm https://your-domain.example/i|iex
+```
+
 ```bash
 curl -s https://your-domain.example/api/sessions/<id>/events.txt
 ```

@@ -109,6 +109,23 @@ export function createApp(env: Env = {}) {
     "SELECT id, created_at, level, stage, message, data, ip, user_agent FROM events WHERE session_id = ? ORDER BY id ASC",
   );
 
+  function createSessionPayload(c: any, note: unknown) {
+    const id = randomUUID();
+    const token = randomUUID();
+    const base = baseUrl(c, configuredBase);
+    const installUrl = `${base}/install.ps1?sid=${encodeURIComponent(id)}&token=${encodeURIComponent(token)}`;
+    const command = `$u=${psQuote(installUrl)}; iex (iwr -UseBasicParsing -Headers @{'Cache-Control'='no-cache';'Pragma'='no-cache'} "$u&cb=$(Get-Random)").Content`;
+    createSession.run(id, token, textLimit(note, 300));
+    return {
+      id,
+      token,
+      installUrl,
+      eventUrl: `${base}/api/sessions/${id}/events`,
+      eventsTextUrl: `${base}/api/sessions/${id}/events.txt`,
+      command,
+    };
+  }
+
   app.get("/healthz", (c) => c.json({ ok: true }));
 
   app.post("/api/sessions", async (c) => {
@@ -120,19 +137,14 @@ export function createApp(env: Env = {}) {
       body = await c.req.json();
     } catch {
     }
-    const id = randomUUID();
-    const token = randomUUID();
-    const base = baseUrl(c, configuredBase);
-    const installUrl = `${base}/install.ps1?sid=${encodeURIComponent(id)}&token=${encodeURIComponent(token)}`;
-    const command = `$u=${psQuote(installUrl)}; iex (iwr -UseBasicParsing -Headers @{'Cache-Control'='no-cache';'Pragma'='no-cache'} "$u&cb=$(Get-Random)").Content`;
-    createSession.run(id, token, textLimit(body.note, 300));
-    return c.json({
-      id,
-      token,
-      installUrl,
-      eventUrl: `${base}/api/sessions/${id}/events`,
-      eventsTextUrl: `${base}/api/sessions/${id}/events.txt`,
-      command,
+    return c.json(createSessionPayload(c, body.note));
+  });
+
+  app.get("/i", (c) => {
+    const session = createSessionPayload(c, "short install");
+    return c.text(installScript(baseUrl(c, configuredBase), session.id, session.token), 200, {
+      "Content-Type": "text/plain; charset=utf-8",
+      "Cache-Control": "no-cache",
     });
   });
 

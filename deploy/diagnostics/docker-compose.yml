@@ -1,0 +1,24 @@
+services:
+  diagnostics:
+    build:
+      context: ../..
+      dockerfile: deploy/diagnostics/Dockerfile
+    image: vibemode-diagnostics:latest
+    container_name: vibemode-diagnostics
+    restart: unless-stopped
+    environment:
+      PORT: "8787"
+      VIBEMODE_DIAG_DB: /data/diagnostics.sqlite
+      VIBEMODE_PUBLIC_BASE_URL: ${VIBEMODE_PUBLIC_BASE_URL:?Set VIBEMODE_PUBLIC_BASE_URL}
+      VIBEMODE_DIAG_ADMIN_TOKEN: ${VIBEMODE_DIAG_ADMIN_TOKEN:?Set VIBEMODE_DIAG_ADMIN_TOKEN}
+    volumes:
+      - diagnostics-data:/data
+    networks:
+      - gorseecode-license_internal
+
+networks:
+  gorseecode-license_internal:
+    external: true
+
+volumes:
+  diagnostics-data:

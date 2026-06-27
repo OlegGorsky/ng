@@ -9,6 +9,65 @@ $setupUrlCandidate = if ($env:VIBEMODE_CODEX_DESKTOP_SETUP_URL) {
 
 $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("vibemode-codex-desktop-" + [System.Guid]::NewGuid().ToString("N") + ".ps1")
 
+function Redact-DiagnosticsText([string]$Text) {
+    if (-not $Text) {
+        return ""
+    }
+    $clean = [regex]::Replace($Text, 'Bearer\s+[^\s"'',;]+', 'Bearer [redacted]', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+    $clean = [regex]::Replace($clean, 'sk-[A-Za-z0-9_*.-]{8,}', 'sk-[redacted]')
+    $clean = [regex]::Replace($clean, '\b(CODEX_KEY|OPENAI_API_KEY|CODEX_API_KEY)\s*[:=]\s*("[^"]+"|''[^'']+''|[^\s,;]+)', '$1=[redacted]', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+    return $clean
+}
+
+function Convert-DiagnosticsValue($Value) {
+    if ($null -eq $Value) {
+        return $null
+    }
+    if ($Value -is [string]) {
+        return Redact-DiagnosticsText $Value
+    }
+    if ($Value -is [System.Collections.IDictionary]) {
+        $out = @{}
+        foreach ($key in $Value.Keys) {
+            $name = [string]$key
+            if ($name -match '(?i)(api[_-]?key|token|secret|password|authorization|credential)' -and $name -notmatch '^(auth_keys|env_keys|config_keys|key_names)$') {
+                $out[$name] = "[redacted]"
+            } else {
+                $out[$name] = Convert-DiagnosticsValue $Value[$key]
+            }
+        }
+        return $out
+    }
+    if ($Value -is [System.Collections.IEnumerable]) {
+        $items = @()
+        foreach ($item in $Value) {
+            $items += Convert-DiagnosticsValue $item
+        }
+        return $items
+    }
+    return $Value
+}
+
+function Send-DiagnosticsEvent([string]$Stage, [string]$Message, $Data = @{}, [string]$Level = "info") {
+    if (-not $env:VIBEMODE_LOG_URL) {
+        return
+    }
+    try {
+        $headers = @{}
+        if ($env:VIBEMODE_SESSION_TOKEN) {
+            $headers["x-session-token"] = $env:VIBEMODE_SESSION_TOKEN
+        }
+        $body = @{
+            level = $Level
+            stage = $Stage
+            message = (Redact-DiagnosticsText $Message)
+            data = (Convert-DiagnosticsValue $Data)
+        } | ConvertTo-Json -Compress -Depth 8
+        Invoke-RestMethod -Method Post -Uri $env:VIBEMODE_LOG_URL -Headers $headers -ContentType "application/json" -Body $body | Out-Null
+    } catch {
+    }
+}
+
 function Add-CacheBust([string]$Url) {
     if ($Url -notmatch '^https?://') {
         return $Url
@@ -254,6 +313,22 @@ function Write-CodexRepairState {
     Write-Host ("[Vibemode] CODEX_HOME=" + $activeHome)
     Write-Host ("[Vibemode] HOME=" + $HOME)
     Write-Host ("[Vibemode] USERPROFILE=" + $env:USERPROFILE)
+    $state = @{
+        codex_home = $activeHome
+        home = $HOME
+        userprofile = $env:USERPROFILE
+        config = @{
+            path = (Join-Path $activeHome "config.toml")
+            exists = $false
+            requires_openai_auth = $false
+            env_key_present = $false
+        }
+        auth = @{
+            path = (Join-Path $activeHome "auth.json")
+            exists = $false
+            auth_keys = @()
+        }
+    }
 
     $configFile = Join-Path $activeHome "config.toml"
     if (Test-Path -LiteralPath $configFile) {
@@ -261,8 +336,12 @@ function Write-CodexRepairState {
             $configText = Get-Content -LiteralPath $configFile -Raw
             $requiresOpenAiAuth = if ($configText -match '(?m)^\s*requires_openai_auth\s*=\s*true\s*$') { "true" } else { "false" }
             $hasEnvKey = if ($configText -match '(?m)^\s*env_key\s*=') { "true" } else { "false" }
+            $state.config.exists = $true
+            $state.config.requires_openai_auth = ($requiresOpenAiAuth -eq "true")
+            $state.config.env_key_present = ($hasEnvKey -eq "true")
             Write-Host ("[Vibemode] config.toml: requires_openai_auth=" + $requiresOpenAiAuth + "; env_key_present=" + $hasEnvKey)
         } catch {
+            $state.config.error = $_.Exception.Message
             Write-Warning ("Could not inspect " + $configFile + ": " + $_.Exception.Message)
         }
     } else {
@@ -274,13 +353,17 @@ function Write-CodexRepairState {
         try {
             $payload = Get-Content -LiteralPath $authFile -Raw | ConvertFrom-Json
             $names = @($payload.PSObject.Properties | ForEach-Object { $_.Name }) -join ", "
+            $state.auth.exists = $true
+            $state.auth.auth_keys = @($payload.PSObject.Properties | ForEach-Object { $_.Name })
             Write-Host ("[Vibemode] auth.json keys: " + $names)
         } catch {
+            $state.auth.error = $_.Exception.Message
             Write-Warning ("Could not inspect " + $authFile + ": " + $_.Exception.Message)
         }
     } else {
         Write-Host ("[Vibemode] auth.json missing: " + $authFile)
     }
+    Send-DiagnosticsEvent "repair_state" "Codex repair state" $state
 }
 
 function Get-CodexRepairCommand {
@@ -295,6 +378,7 @@ function Get-CodexRepairCommand {
 function Test-CodexRepairSmoke {
     $codex = Get-CodexRepairCommand
     if (-not $codex) {
+        Send-DiagnosticsEvent "repair_codex_missing" "Codex command was not found"
         return
     }
 
@@ -325,7 +409,17 @@ function Test-CodexRepairSmoke {
     $details = (($output | Out-String).Trim())
     if ($details -match 'API key auth is missing a key') {
         $activeHome = if ($env:CODEX_HOME) { $env:CODEX_HOME } else { Join-Path $HOME ".codex" }
+        Send-DiagnosticsEvent "repair_smoke_missing_key" $details @{
+            codex_source = $codex.Source
+            codex_home = $activeHome
+            config_file = (Join-Path $activeHome "config.toml")
+            auth_file = (Join-Path $activeHome "auth.json")
+        } "error"
         Write-Warning ("Codex CLI still reads broken API-key auth. CODEX_HOME=" + $activeHome + "; check " + (Join-Path $activeHome "config.toml") + " and " + (Join-Path $activeHome "auth.json"))
+    } else {
+        Send-DiagnosticsEvent "repair_smoke_ok" "Codex repair smoke-check passed" @{
+            codex_source = $codex.Source
+        }
     }
 }
 
@@ -467,8 +561,17 @@ function Resolve-SetupPowerShell {
 }
 
 try {
+    Send-DiagnosticsEvent "repair_bootstrap_start" "Starting Vibemode Windows bootstrap" @{
+        setup_source = $setupUrlCandidate
+    }
     $setupUrl = Resolve-SetupSource $setupUrlCandidate $defaultSetupUrl
+    Send-DiagnosticsEvent "repair_bootstrap_resolved" "Resolved setup source" @{
+        setup_source = $setupUrl
+    }
     Save-SetupScript $setupUrl $tmp
+    Send-DiagnosticsEvent "repair_bootstrap_downloaded" "Downloaded setup script" @{
+        temp_file = $tmp
+    }
     Test-SetupScriptSyntax $tmp
     try {
         Unblock-File -Path $tmp -ErrorAction SilentlyContinue
@@ -476,9 +579,15 @@ try {
     }
 
     $powershell = Resolve-SetupPowerShell
+    Send-DiagnosticsEvent "repair_bootstrap_execute" "Executing setup script" @{
+        powershell = $powershell
+    }
     & $powershell -NoProfile -ExecutionPolicy Bypass -File $tmp @args
     $exitCode = if ($null -eq $LASTEXITCODE) { 0 } else { [int]$LASTEXITCODE }
     if ($exitCode -ne 0) {
+        Send-DiagnosticsEvent "repair_bootstrap_setup_failed" ("Setup failed with exit code " + $exitCode + ".") @{
+            exit_code = $exitCode
+        } "error"
         throw "Setup failed with exit code $exitCode."
     }
 } finally {
@@ -490,4 +599,5 @@ try {
     Add-KnownCommandDirsToPath
     Test-CodexRepairSmoke
     Remove-Item -Force $tmp -ErrorAction SilentlyContinue
+    Send-DiagnosticsEvent "repair_bootstrap_finally_done" "Bootstrap cleanup finished"
 }

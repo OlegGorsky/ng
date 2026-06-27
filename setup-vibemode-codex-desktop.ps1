@@ -42,16 +42,78 @@ if (-not $ImageHelperPath) {
 }
 $ImageHelperCommandPath = Join-Path (Split-Path -Parent $ImageHelperPath) "responses-image.cmd"
 
+function Redact-DiagnosticsText([string]$Text) {
+    if (-not $Text) {
+        return ""
+    }
+    $clean = [regex]::Replace($Text, 'Bearer\s+[^\s"'',;]+', 'Bearer [redacted]', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+    $clean = [regex]::Replace($clean, 'sk-[A-Za-z0-9_*.-]{8,}', 'sk-[redacted]')
+    $clean = [regex]::Replace($clean, '\b(CODEX_KEY|OPENAI_API_KEY|CODEX_API_KEY)\s*[:=]\s*("[^"]+"|''[^'']+''|[^\s,;]+)', '$1=[redacted]', [System.Text.RegularExpressions.RegexOptions]::IgnoreCase)
+    return $clean
+}
+
+function Convert-DiagnosticsValue($Value) {
+    if ($null -eq $Value) {
+        return $null
+    }
+    if ($Value -is [string]) {
+        return Redact-DiagnosticsText $Value
+    }
+    if ($Value -is [System.Collections.IDictionary]) {
+        $out = @{}
+        foreach ($key in $Value.Keys) {
+            $name = [string]$key
+            if ($name -match '(?i)(api[_-]?key|token|secret|password|authorization|credential)' -and $name -notmatch '^(auth_keys|env_keys|config_keys|key_names)$') {
+                $out[$name] = "[redacted]"
+            } else {
+                $out[$name] = Convert-DiagnosticsValue $Value[$key]
+            }
+        }
+        return $out
+    }
+    if ($Value -is [System.Collections.IEnumerable]) {
+        $items = @()
+        foreach ($item in $Value) {
+            $items += Convert-DiagnosticsValue $item
+        }
+        return $items
+    }
+    return $Value
+}
+
+function Send-DiagnosticsEvent([string]$Stage, [string]$Message, $Data = @{}, [string]$Level = "info") {
+    if (-not $env:VIBEMODE_LOG_URL) {
+        return
+    }
+    try {
+        $headers = @{}
+        if ($env:VIBEMODE_SESSION_TOKEN) {
+            $headers["x-session-token"] = $env:VIBEMODE_SESSION_TOKEN
+        }
+        $body = @{
+            level = $Level
+            stage = $Stage
+            message = (Redact-DiagnosticsText $Message)
+            data = (Convert-DiagnosticsValue $Data)
+        } | ConvertTo-Json -Compress -Depth 8
+        Invoke-RestMethod -Method Post -Uri $env:VIBEMODE_LOG_URL -Headers $headers -ContentType "application/json" -Body $body | Out-Null
+    } catch {
+    }
+}
+
 function Log([string]$Message) {
     Write-Host $Message
+    Send-DiagnosticsEvent "log" $Message
 }
 
 function Warn([string]$Message) {
     Write-Warning $Message
+    Send-DiagnosticsEvent "warning" $Message @{} "warn"
 }
 
 function Die([string]$Message) {
     Write-Error $Message
+    Send-DiagnosticsEvent "error" $Message @{} "error"
     exit 1
 }
 
@@ -578,6 +640,78 @@ function Assert-AuthReady {
     Log ("Codex auth готов: " + $AuthFile)
 }
 
+function Send-CodexDiagnosticsState([string]$Stage) {
+    $config = @{
+        path = $ConfigFile
+        exists = (Test-Path -LiteralPath $ConfigFile)
+        requires_openai_auth = $false
+        env_key_present = $false
+        model_provider = ""
+    }
+    if ($config.exists) {
+        try {
+            $configText = Get-Content -LiteralPath $ConfigFile -Raw
+            $config.requires_openai_auth = ($configText -match '(?m)^\s*requires_openai_auth\s*=\s*true\s*$')
+            $config.env_key_present = ($configText -match '(?m)^\s*env_key\s*=')
+            $providerMatch = [regex]::Match($configText, '(?m)^\s*model_provider\s*=\s*"([^"]+)"')
+            if ($providerMatch.Success) {
+                $config.model_provider = $providerMatch.Groups[1].Value
+            }
+        } catch {
+            $config.error = $_.Exception.Message
+        }
+    }
+
+    $auth = @{
+        path = $AuthFile
+        exists = (Test-Path -LiteralPath $AuthFile)
+        auth_keys = @()
+    }
+    if ($auth.exists) {
+        try {
+            $payload = Get-Content -LiteralPath $AuthFile -Raw | ConvertFrom-Json
+            $auth.auth_keys = @($payload.PSObject.Properties | ForEach-Object { $_.Name })
+        } catch {
+            $auth.error = $_.Exception.Message
+        }
+    }
+
+    $desktopEnvKeys = @()
+    if (Test-Path -LiteralPath $DesktopEnvFile) {
+        try {
+            foreach ($line in [System.IO.File]::ReadAllLines($DesktopEnvFile)) {
+                if ($line -match '^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=') {
+                    $desktopEnvKeys += $Matches[1]
+                }
+            }
+        } catch {
+        }
+    }
+
+    $envPresence = @{}
+    foreach ($name in @("CODEX_HOME", $EnvKey, $OpenAiEnvKey, $CodexApiEnvKey)) {
+        $envPresence[$name] = @{
+            process = [bool]([Environment]::GetEnvironmentVariable($name, "Process"))
+            user = [bool]([Environment]::GetEnvironmentVariable($name, "User"))
+            machine = [bool]([Environment]::GetEnvironmentVariable($name, "Machine"))
+        }
+    }
+
+    Send-DiagnosticsEvent $Stage "Codex diagnostics state" @{
+        codex_home = $CodexDir
+        home = $HOME
+        userprofile = $env:USERPROFILE
+        config = $config
+        auth = $auth
+        desktop_env = @{
+            path = $DesktopEnvFile
+            exists = (Test-Path -LiteralPath $DesktopEnvFile)
+            env_keys = $desktopEnvKeys
+        }
+        env_presence = $envPresence
+    }
+}
+
 function Sanitize-Secret([string]$Text, [string]$ApiKey) {
     if (-not $Text) {
         return ""
@@ -971,6 +1105,7 @@ function Invoke-CodexLogin([string]$ApiKey) {
 function Test-CodexCliAuth([string]$ApiKey) {
     $codex = Get-CodexCommand
     if (-not $codex) {
+        Send-DiagnosticsEvent "codex_cli_missing" "Codex CLI command was not found"
         return
     }
 
@@ -1000,7 +1135,18 @@ function Test-CodexCliAuth([string]$ApiKey) {
 
     $details = Sanitize-Secret (($output | Out-String).Trim()) $ApiKey
     if ($details -match 'API key auth is missing a key') {
+        Send-CodexDiagnosticsState "codex_cli_auth_missing_key"
+        Send-DiagnosticsEvent "codex_cli_auth_missing_key" $details @{
+            codex_source = $codex.Source
+            codex_home = $env:CODEX_HOME
+            auth_file = $AuthFile
+        } "error"
         Die ("Codex CLI всё ещё видит сломанный API-key auth. CODEX_HOME=" + $env:CODEX_HOME + "; auth.json=" + $AuthFile)
+    }
+    Send-DiagnosticsEvent "codex_cli_auth_ok" "Codex CLI auth smoke-check passed" @{
+        codex_source = $codex.Source
+        codex_home = $env:CODEX_HOME
+        auth_file = $AuthFile
     }
     Log "Codex CLI auth smoke-check пройден"
 }
@@ -1429,11 +1575,17 @@ printf 'home=%s\n' "$HOME"
 
 $apiKey = Read-ApiKey
 
+Send-DiagnosticsEvent "setup_start" "Vibemode Windows setup started" @{
+    codex_home = $CodexDir
+    home = $HOME
+    userprofile = $env:USERPROFILE
+}
 Log "Папка Codex Desktop: $CodexDir"
 Write-Config
 Write-Auth $apiKey
 Write-DesktopEnv $apiKey
 Set-CodexKeyEnvironment $apiKey
+Send-CodexDiagnosticsState "files_written"
 Install-PowerShellEnvProfile
 Install-ImageHelper
 Install-WslConfig $apiKey
@@ -1442,6 +1594,7 @@ Invoke-CodexLogin $apiKey
 Write-Auth $apiKey
 Assert-AuthReady
 Sync-AdditionalCodexDirs $apiKey
+Send-CodexDiagnosticsState "before_codex_smoke"
 Test-CodexCliAuth $apiKey
 
 if ($SkipApiCheck -or (Test-EnvFlag $env:VIBEMODE_SKIP_API_CHECK)) {
@@ -1454,6 +1607,7 @@ if ($SkipApiCheck -or (Test-EnvFlag $env:VIBEMODE_SKIP_API_CHECK)) {
     }
 }
 
+Send-CodexDiagnosticsState "setup_done"
 Log ""
 Log "Перезапусти Codex Desktop, чтобы он перечитал provider config."
 Log ("Пример helper для генерации картинок: & " + [char]34 + $ImageHelperCommandPath + [char]34 + " --list-presets")

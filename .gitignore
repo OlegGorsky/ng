@@ -5,6 +5,8 @@
 *.bak-*
 .env
 .codex/
+node_modules/
+.vibemode-diagnostics.sqlite*
 __pycache__/
 output/
 tmp/

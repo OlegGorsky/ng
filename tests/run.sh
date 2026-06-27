@@ -10,6 +10,8 @@ DESKTOP_BOOTSTRAP="$ROOT_DIR/d"
 DESKTOP_BOOTSTRAP_PS="$ROOT_DIR/d.ps1"
 PACKAGE_JSON="$ROOT_DIR/package.json"
 CLI="$ROOT_DIR/bin/vibemode.js"
+DIAG_SERVER="$ROOT_DIR/src/diagnostics/server.ts"
+DIAG_REDACT="$ROOT_DIR/src/diagnostics/redact.ts"
 
 PASS_COUNT=0
 FAIL_COUNT=0
@@ -1142,6 +1144,12 @@ test_desktop_powershell_static_checks() {
   assert_contains "$DESKTOP_PS" 'py -3 --version >nul 2>nul' 'PowerShell image helper wrapper supports py launcher'
   assert_contains "$DESKTOP_PS" '%LOCALAPPDATA%\Programs\Python\Python*' 'PowerShell image helper wrapper finds user-scope Python'
   assert_contains "$DESKTOP_PS" 'function Install-CodexCli' 'PowerShell setup can install Codex CLI'
+  assert_contains "$DESKTOP_PS" 'function Send-DiagnosticsEvent' 'PowerShell setup can send remote diagnostics events'
+  assert_contains "$DESKTOP_PS" 'VIBEMODE_LOG_URL' 'PowerShell setup enables diagnostics only when log URL is set'
+  assert_contains "$DESKTOP_PS" 'function Send-CodexDiagnosticsState' 'PowerShell setup sends Codex state snapshots'
+  assert_contains "$DESKTOP_PS" 'auth_keys = @($payload.PSObject.Properties' 'PowerShell setup logs auth.json key names only'
+  assert_contains "$DESKTOP_PS" 'env_key_present' 'PowerShell setup reports stale provider env_key state'
+  assert_contains "$DESKTOP_PS" 'env_presence' 'PowerShell setup reports process/user/machine env presence'
   assert_contains "$DESKTOP_PS" 'npm install -g @openai/codex' 'PowerShell setup tells users how to install Codex CLI'
   assert_contains "$DESKTOP_PS" 'install -g @openai/codex' 'PowerShell setup installs Codex CLI through npm'
   assert_contains "$DESKTOP_PS" 'OpenJS.NodeJS.LTS' 'PowerShell setup can install Node.js for Codex CLI'
@@ -1254,6 +1262,10 @@ test_desktop_powershell_static_checks() {
   assert_not_contains_file "$DESKTOP_PS" '-f $ImageHelperPath' 'PowerShell setup avoids format operator in final helper log'
   assert_contains "$DESKTOP_PS" '[char]34 + $ImageHelperCommandPath + [char]34' 'PowerShell setup builds quoted wrapper helper example without escaped quotes or format placeholders'
   assert_contains "$DESKTOP_BOOTSTRAP_PS" 'setup-vibemode-codex-desktop.ps1' 'PowerShell bootstrap points to desktop setup'
+  assert_contains "$DESKTOP_BOOTSTRAP_PS" 'function Send-DiagnosticsEvent' 'PowerShell bootstrap can send remote diagnostics events'
+  assert_contains "$DESKTOP_BOOTSTRAP_PS" 'VIBEMODE_LOG_URL' 'PowerShell bootstrap enables diagnostics only when log URL is set'
+  assert_contains "$DESKTOP_BOOTSTRAP_PS" 'repair_state' 'PowerShell bootstrap sends repair state snapshots'
+  assert_contains "$DESKTOP_BOOTSTRAP_PS" 'auth_keys = @($payload.PSObject.Properties' 'PowerShell bootstrap logs auth.json key names only'
   assert_contains "$DESKTOP_BOOTSTRAP_PS" 'Add-CacheBust' 'PowerShell bootstrap cache-busts downloaded setup'
   assert_contains "$DESKTOP_BOOTSTRAP_PS" '.Contains("?")' 'PowerShell bootstrap detects existing query strings literally'
   assert_not_contains_file "$DESKTOP_BOOTSTRAP_PS" '-like "*?*"' 'PowerShell bootstrap does not use wildcard query detection'
@@ -1320,6 +1332,12 @@ test_desktop_powershell_static_checks() {
   assert_contains "$DESKTOP_BOOTSTRAP_PS" '-ExecutionPolicy Bypass -File $tmp' 'PowerShell bootstrap runs downloaded setup with execution policy bypass'
   assert_not_contains_file "$DESKTOP_BOOTSTRAP_PS" 'Invoke-WebRequest -UseBasicParsing -Uri $setupUrl -OutFile $tmp' 'PowerShell bootstrap does not save raw UTF-8 without BOM'
   assert_not_contains_file "$DESKTOP_BOOTSTRAP_PS" '& $tmp @args' 'PowerShell bootstrap does not execute downloaded ps1 directly'
+  assert_contains "$DIAG_SERVER" 'new Hono' 'diagnostics server uses Hono'
+  assert_contains "$DIAG_SERVER" 'bun:sqlite' 'diagnostics server uses Bun SQLite'
+  assert_contains "$DIAG_SERVER" '/api/sessions' 'diagnostics server exposes session API'
+  assert_contains "$DIAG_SERVER" '/install.ps1' 'diagnostics server serves terminal PowerShell installer'
+  assert_contains "$DIAG_REDACT" 'redactForLog' 'diagnostics server redacts events before storing them'
+  assert_contains "$DIAG_REDACT" 'OPENAI_API_KEY' 'diagnostics redaction knows Codex API env names'
 
   invalid_var_colon="$(grep -Pn '\$[A-Za-z_][A-Za-z0-9_]*:' "$DESKTOP_PS" | grep -Pv '\$(env|global|script|local|private|using|variable|function):' || true)"
   if [[ -z "$invalid_var_colon" ]]; then

@@ -19,13 +19,19 @@
     "bin",
     "docs",
     "scripts/responses_image.py",
+    "src/diagnostics",
     "setup-vibemode-codex-desktop.ps1",
     "setup-vibemode-codex-desktop.sh",
     "setup-vibemode-codex-termux.sh",
     "README.md"
   ],
   "scripts": {
+    "diag:server": "bun run src/diagnostics/server.ts",
+    "diag:test": "bun test src/diagnostics/redact.test.ts",
     "test": "bash tests/run.sh"
+  },
+  "dependencies": {
+    "hono": "^4.10.6"
   },
   "engines": {
     "node": ">=18"

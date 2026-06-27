@@ -124,6 +124,35 @@ $env:VIBEMODE_REPLACE_KEY='1'; $env:VIBEMODE_KEY_FROM_CLIPBOARD='1'; $u='https:/
 $d=if($env:CODEX_HOME){$env:CODEX_HOME}else{Join-Path $HOME '.codex'}; "CODEX_HOME=$d"; Select-String -Path (Join-Path $d 'config.toml') -Pattern 'model_provider|requires_openai_auth|env_key|base_url' -ErrorAction SilentlyContinue; (Get-Content (Join-Path $d 'auth.json') -Raw -ErrorAction SilentlyContinue | ConvertFrom-Json).PSObject.Properties.Name
 ```
 
+## Терминальная диагностика Windows
+
+Для удалённой диагностики без Web UI можно поднять Bun/Hono сервер. Он пишет события в SQLite и не сохраняет значения API-ключей: только пути, флаги и имена полей вроде `auth_mode, OPENAI_API_KEY`.
+
+На своём сервере:
+
+```bash
+bun install
+VIBEMODE_PUBLIC_BASE_URL=https://your-domain.example PORT=8787 bun run diag:server
+```
+
+Создать диагностическую сессию:
+
+```bash
+curl -s -X POST https://your-domain.example/api/sessions
+```
+
+Ответ вернёт `command`. Её нужно отправить пользователю в PowerShell. Смотреть лог:
+
+```bash
+curl -s https://your-domain.example/api/sessions/<id>/events.txt
+```
+
+Если задан `VIBEMODE_DIAG_ADMIN_TOKEN`, добавь заголовок:
+
+```bash
+curl -s -H "x-admin-token: $VIBEMODE_DIAG_ADMIN_TOKEN" https://your-domain.example/api/sessions/<id>/events.txt
+```
+
 ## Что будет по шагам
 
 1. CLI или скрипт найдёт Codex config directory.

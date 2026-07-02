@@ -5,7 +5,7 @@
 - Codex Desktop на Ubuntu/Linux, macOS и Windows.
 - Codex CLI в Termux.
 
-Основной способ установки теперь единый CLI через `npx` прямо из GitHub. Старые короткие `curl`/PowerShell команды тоже остаются: они удобны, когда Node.js/npm ещё не поставлены.
+Основной способ установки теперь единый CLI через `npx`. Старые короткие `curl`/PowerShell команды тоже остаются: они удобны, когда Node.js/npm ещё не поставлены.
 
 CLI и скрипты прописывают Vibemode API в Codex config, сохраняют официальный кеш API-логина Codex в `auth.json`, настраивают `CODEX_KEY`, `OPENAI_API_KEY` и `CODEX_API_KEY` в окружении, проверяют `/v1/responses` и не печатают API-ключ в терминал.
 
@@ -20,16 +20,16 @@ pkg install -y nodejs
 На Linux/macOS/Windows поставь Node.js любым привычным способом, затем запускай:
 
 ```bash
-npx --yes github:OlegGorsky/ng setup --install-codex
+npx --yes vibemode-codex setup --install-codex
 ```
 
 Команда спросит Vibemode API key скрытым вводом, установит `@openai/codex`, если Codex CLI ещё не найден, и запишет локальный Codex config для текущего пользователя. Один и тот же `~/.codex` или `%USERPROFILE%\.codex` используется Codex CLI и Codex Desktop, поэтому `--target all` является режимом по умолчанию.
 
-Пока опубликованный npm-релиз не догнал GitHub-версию, не используй `npm install -g vibemode-codex` для ремонта Windows auth: registry может отдать старый пакет без фикса `requires_openai_auth`. Если нужен глобальный CLI, ставь текущий GitHub-код:
+Если нужен глобальный CLI:
 
 ```bash
 npm uninstall -g vibemode-codex
-npm install -g github:OlegGorsky/ng
+npm install -g vibemode-codex
 vibemode setup --install-codex
 ```
 
@@ -51,11 +51,11 @@ vibemode run -- codex --yolo
 То же самое можно запускать без глобальной установки:
 
 ```bash
-npx --yes github:OlegGorsky/ng status
-npx --yes github:OlegGorsky/ng key set
-npx --yes github:OlegGorsky/ng use openai
-npx --yes github:OlegGorsky/ng remove
-npx --yes github:OlegGorsky/ng run -- codex --yolo
+npx --yes vibemode-codex status
+npx --yes vibemode-codex key set
+npx --yes vibemode-codex use openai
+npx --yes vibemode-codex remove
+npx --yes vibemode-codex run -- codex --yolo
 ```
 
 `vibemode run -- codex --yolo` полезен в Termux: команда подставляет сохранённый ключ только в запускаемый Codex-процесс, даже если текущая вкладка ещё не перечитала `.profile`.
@@ -65,13 +65,13 @@ npx --yes github:OlegGorsky/ng run -- codex --yolo
 Рекомендуемый универсальный путь для новых пользователей:
 
 ```bash
-npx --yes github:OlegGorsky/ng setup --install-codex
+npx --yes vibemode-codex setup --install-codex
 ```
 
 Дальше запускай Codex так:
 
 ```bash
-npx --yes github:OlegGorsky/ng run -- codex --yolo
+npx --yes vibemode-codex run -- codex --yolo
 ```
 
 Если Node.js/npm пока нет или нужен короткий legacy-вариант, используй команды ниже.

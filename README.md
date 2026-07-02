@@ -106,7 +106,14 @@ curl -fsSL -H 'Cache-Control: no-cache' https://raw.githubusercontent.com/OlegGo
 
 ## Быстрый ремонт Windows auth
 
-Если Codex на Windows пишет `API key auth is missing a key`, почти всегда запущен старый npm-пакет или Codex смотрит в другой `CODEX_HOME`. Запусти свежий GitHub bootstrap, он обходит кеш и переписывает активный Codex config:
+Если Codex на Windows пишет `API key auth is missing a key`, переустанови текущий npm-пакет и перепиши активный Codex config:
+
+```powershell
+npm install -g vibemode-codex
+vibemode setup --install-codex
+```
+
+Если Node.js/npm ещё нет, запусти Windows bootstrap:
 
 ```powershell
 $u='https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1'; iex (iwr -UseBasicParsing -Headers @{'Cache-Control'='no-cache';'Pragma'='no-cache'} "$u?$(Get-Random)").Content

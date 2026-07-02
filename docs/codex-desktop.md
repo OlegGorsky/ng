@@ -55,12 +55,14 @@ Codex CLI ставится через npm. Если npm нет, Windows setup п
 $env:VIBEMODE_KEY_FROM_CLIPBOARD='1'; $u='https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1'; iex (iwr -UseBasicParsing -Headers @{'Cache-Control'='no-cache'} "$u?$(Get-Random)").Content; Remove-Item Env:\VIBEMODE_KEY_FROM_CLIPBOARD -ErrorAction SilentlyContinue
 ```
 
-Если Codex CLI после этого всё равно пишет `API key auth is missing a key`, обнови `vibemode-codex` из npm registry или запусти свежий bootstrap напрямую:
+Если Codex CLI после этого всё равно пишет `API key auth is missing a key`, переустанови текущий npm-пакет и перепиши активный Codex config:
 
 ```powershell
 npm install -g vibemode-codex
 vibemode setup --install-codex
 ```
+
+Если Node.js/npm ещё нет, запусти Windows bootstrap:
 
 ```powershell
 $u='https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1'; iex (iwr -UseBasicParsing -Headers @{'Cache-Control'='no-cache';'Pragma'='no-cache'} "$u?$(Get-Random)").Content

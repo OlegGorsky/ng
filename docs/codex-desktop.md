@@ -85,7 +85,7 @@ $d=if($env:CODEX_HOME){$env:CODEX_HOME}else{Join-Path $HOME '.codex'}; "CODEX_HO
 В `config.toml` выставляется Vibemode provider:
 
 ```toml
-model = "gpt-5.4"
+model = "gpt-5.6-terra"
 model_provider = "vibemode"
 model_reasoning_effort = "medium"
 cli_auth_credentials_store = "file"
@@ -95,6 +95,8 @@ name = "vibemode"
 base_url = "https://api.vibemod.pro/v1"
 requires_openai_auth = true
 ```
+
+По умолчанию используется `gpt-5.6-terra`. Другие текущие модели VibeMode можно выбрать через `--model gpt-5.6-sol` или `--model gpt-5.6-luna`.
 
 В `auth.json` записывается или сохраняется:
 
@@ -198,7 +200,7 @@ Windows setup также пробует поставить Codex CLI: `@openai/c
 Полезные опции:
 
 ```bash
-bash setup-vibemode-codex-desktop.sh --non-interactive --model gpt-5
+bash setup-vibemode-codex-desktop.sh --non-interactive --model gpt-5.6-sol
 bash setup-vibemode-codex-desktop.sh --skip-api-check
 bash setup-vibemode-codex-desktop.sh --no-image-helper
 ```
@@ -206,7 +208,7 @@ bash setup-vibemode-codex-desktop.sh --no-image-helper
 Windows:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\setup-vibemode-codex-desktop.ps1 -NonInteractive -Model gpt-5
+powershell -ExecutionPolicy Bypass -File .\setup-vibemode-codex-desktop.ps1 -NonInteractive -Model gpt-5.6-sol
 powershell -ExecutionPolicy Bypass -File .\setup-vibemode-codex-desktop.ps1 -SkipApiCheck
 powershell -ExecutionPolicy Bypass -File .\setup-vibemode-codex-desktop.ps1 -NoImageHelper
 powershell -ExecutionPolicy Bypass -File .\setup-vibemode-codex-desktop.ps1 -WslDistro Ubuntu

@@ -203,7 +203,9 @@ cat <<'JSON'
 {
   "object": "list",
   "data": [
-    { "id": "gpt-5.4" },
+    { "id": "gpt-5.6-luna" },
+    { "id": "gpt-5.6-sol" },
+    { "id": "gpt-5.6-terra" },
     { "id": "gpt-5" },
     { "id": "gpt-4.1" }
   ]
@@ -457,7 +459,7 @@ FAKE_CODEX
   assert_file "$tmp/home/.codex/auth.json" 'npm CLI creates auth.json'
   assert_file "$tmp/home/.codex/.env" 'npm CLI creates Codex Desktop env file'
   assert_file "$tmp/home/.codex/vibemode.env" 'npm CLI creates shell env file'
-  assert_contains "$config" 'model = "gpt-5.4"' 'npm CLI writes default model'
+  assert_contains "$config" 'model = "gpt-5.6-terra"' 'npm CLI writes default model'
   assert_contains "$config" 'model_provider = "vibemode"' 'npm CLI selects Vibemode provider'
   assert_contains "$config" 'cli_auth_credentials_store = "file"' 'npm CLI forces file credential storage'
   assert_contains "$config" '[model_providers.vibemode]' 'npm CLI writes Vibemode provider table'
@@ -599,7 +601,7 @@ FAKE_CODEX
   assert_file "$tmp/home/.codex/config.toml" 'creates config.toml'
   assert_file "$tmp/home/.codex/auth.json" 'creates auth.json'
   assert_file "$tmp/home/.codex/vibemode.env" 'creates shell env file'
-  assert_contains "$tmp/home/.codex/config.toml" 'model = "gpt-5.4"' 'writes default model'
+  assert_contains "$tmp/home/.codex/config.toml" 'model = "gpt-5.6-terra"' 'writes default model'
   assert_contains "$tmp/home/.codex/config.toml" 'model_provider = "vibemode"' 'selects Vibemode provider'
   assert_contains "$tmp/home/.codex/config.toml" 'cli_auth_credentials_store = "file"' 'forces file credential storage'
   assert_contains "$tmp/home/.codex/config.toml" '[model_providers.vibemode]' 'writes Vibemode provider table'
@@ -690,7 +692,7 @@ TOML
   assert_contains "$config" 'approval_policy = "never"' 'preserves unrelated root settings'
   assert_contains "$config" '[profiles.termux]' 'preserves unrelated tables'
   assert_contains "$config" 'sandbox_mode = "workspace-write"' 'preserves unrelated table content'
-  assert_count "$config" 'model = "gpt-5.4"' '1' 'keeps one root model key'
+  assert_count "$config" 'model = "gpt-5.6-terra"' '1' 'keeps one root model key'
   assert_count "$config" 'model_provider = "vibemode"' '1' 'keeps one root provider key'
   assert_count "$config" '[model_providers.vibemode]' '1' 'keeps one Vibemode provider table'
   assert_not_contains_file "$config" '[profiles.default]' 'removes legacy default profile table'
@@ -1417,7 +1419,7 @@ test_desktop_powershell_wsl_embedded_script() {
 
   provider_b64="$(printf '%s' 'vibemode' | base64 | tr -d '\n')"
   base_url_b64="$(printf '%s' 'https://api.vibemod.pro/v1' | base64 | tr -d '\n')"
-  model_b64="$(printf '%s' 'gpt-5.4' | base64 | tr -d '\n')"
+  model_b64="$(printf '%s' 'gpt-5.6-terra' | base64 | tr -d '\n')"
   effort_b64="$(printf '%s' 'medium' | base64 | tr -d '\n')"
   api_key_b64="$(printf '%s' 'test-api-key' | base64 | tr -d '\n')"
   auth_b64="$(printf '{\n  "auth_mode": "apikey",\n  "OPENAI_API_KEY": "test-api-key"\n}\n' | base64 | tr -d '\n')"
@@ -1652,7 +1654,7 @@ model_provider = "Wrong Provider"
 base_url = "https://wrong.example/v1"
 
 [profiles.default]
-model = "gpt-5.4"
+model = "gpt-5.6-terra"
 model_provider = "vibemode"
 reasoning_effort = "medium"
 
@@ -1717,7 +1719,7 @@ test_image_helper_reads_requires_openai_auth_provider() {
 }
 JSON
   cat > "$codex/config.toml" <<'TOML'
-model = "gpt-5.4"
+model = "gpt-5.6-terra"
 model_provider = "vibemode"
 model_reasoning_effort = "medium"
 cli_auth_credentials_store = "file"
@@ -1741,7 +1743,7 @@ spec.loader.exec_module(module)
 config = module.resolve_config()
 assert config.api_key == "existing-test-api-key"
 assert config.base_url == "https://api.vibemod.pro/v1"
-assert config.model == "gpt-5.4"
+assert config.model == "gpt-5.6-terra"
 print("config-ok")
 PY
 )"; then

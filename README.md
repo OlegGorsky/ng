@@ -25,6 +25,8 @@ npx --yes vibemode-codex setup --install-codex
 
 Команда спросит Vibemode API key скрытым вводом, установит `@openai/codex`, если Codex CLI ещё не найден, и запишет локальный Codex config для текущего пользователя. Один и тот же `~/.codex` или `%USERPROFILE%\.codex` используется Codex CLI и Codex Desktop, поэтому `--target all` является режимом по умолчанию.
 
+По умолчанию пишется новая модель `gpt-5.6-terra`. Другие текущие модели VibeMode можно выбрать через `--model gpt-5.6-sol` или `--model gpt-5.6-luna`.
+
 Если нужен глобальный CLI:
 
 ```bash
@@ -195,7 +197,7 @@ curl -s -H "x-admin-token: $VIBEMODE_DIAG_ADMIN_TOKEN" https://your-domain.examp
 `config.toml`:
 
 ```toml
-model = "gpt-5.4"
+model = "gpt-5.6-terra"
 model_provider = "vibemode"
 model_reasoning_effort = "medium"
 cli_auth_credentials_store = "file"
@@ -351,8 +353,8 @@ CODEX_KEY='...' bash setup-vibemode-codex-termux.sh --non-interactive
 Выбрать другую модель:
 
 ```bash
-CODEX_KEY='...' bash setup-vibemode-codex-desktop.sh --non-interactive --model gpt-5
-CODEX_KEY='...' bash setup-vibemode-codex-termux.sh --non-interactive --model gpt-5
+CODEX_KEY='...' bash setup-vibemode-codex-desktop.sh --non-interactive --model gpt-5.6-sol
+CODEX_KEY='...' bash setup-vibemode-codex-termux.sh --non-interactive --model gpt-5.6-luna
 ```
 
 Заменить сохранённый ключ:

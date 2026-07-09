@@ -3,7 +3,7 @@ set -euo pipefail
 
 PROVIDER_NAME='vibemode'
 BASE_URL='https://api.vibemod.pro/v1'
-DEFAULT_MODEL='gpt-5.4'
+DEFAULT_MODEL='gpt-5.6-terra'
 DEFAULT_REASONING_EFFORT='medium'
 ENV_KEY='CODEX_KEY'
 OPENAI_ENV_KEY='OPENAI_API_KEY'
@@ -24,7 +24,7 @@ Usage:
 
 Options:
   --non-interactive     Do not prompt. Requires an env key or existing auth.json.
-  --model MODEL         Codex model to write to config.toml. Default: gpt-5.4.
+  --model MODEL         Codex model to write to config.toml. Default: gpt-5.6-terra.
   --replace-key         Ask for a new key instead of reusing auth.json.
   -h, --help            Show this help.
 

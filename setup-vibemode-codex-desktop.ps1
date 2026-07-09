@@ -1,6 +1,6 @@
 ﻿param(
     [switch]$NonInteractive,
-    [string]$Model = "gpt-5.4",
+    [string]$Model = "gpt-5.6-terra",
     [switch]$SkipApiCheck,
     [switch]$NoImageHelper,
     [switch]$NoWsl,

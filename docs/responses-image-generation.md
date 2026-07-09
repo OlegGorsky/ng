@@ -5,7 +5,7 @@
 После запуска Termux или Desktop установщика скрипт автоматически использует:
 
 ```toml
-model = "gpt-5.4"
+model = "gpt-5.6-terra"
 model_provider = "vibemode"
 model_reasoning_effort = "medium"
 cli_auth_credentials_store = "file"

@@ -181,7 +181,7 @@ function Get-CodexRepairDirs {
 
 function Build-CodexRepairConfigBody([string]$ConfigFile) {
     $providerName = "vibemode"
-    $escapedModel = TomlEscape "gpt-5.4"
+    $escapedModel = TomlEscape "gpt-5.6-terra"
     $escapedProvider = TomlEscape $providerName
     $escapedUrl = TomlEscape "https://api.vibemod.pro/v1"
     $escapedEffort = TomlEscape "medium"

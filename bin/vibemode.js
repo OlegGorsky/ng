@@ -10,7 +10,7 @@ const readline = require('readline');
 
 const PROVIDER_NAME = 'vibemode';
 const BASE_URL = 'https://api.vibemod.pro/v1';
-const DEFAULT_MODEL = 'gpt-5.4';
+const DEFAULT_MODEL = 'gpt-5.6-terra';
 const OPENAI_MODEL = 'gpt-5';
 const DEFAULT_REASONING_EFFORT = 'medium';
 const ENV_KEY = 'CODEX_KEY';

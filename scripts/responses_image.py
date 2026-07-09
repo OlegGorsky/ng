@@ -32,7 +32,7 @@ except ModuleNotFoundError:  # pragma: no cover - Python <3.11 fallback
 
 
 DEFAULT_OUTPUT = "output/imagegen/generated-image.png"
-DEFAULT_MODEL = "gpt-5.4"
+DEFAULT_MODEL = "gpt-5.6-terra"
 CODEX_HOME = pathlib.Path(os.environ.get("CODEX_HOME", pathlib.Path.home() / ".codex")).expanduser()
 AUTH_KEY_NAMES = ("CODEX_KEY", "OPENAI_API_KEY", "CODEX_API_KEY")
 MAX_IMAGE_BYTES = 50 * 1024 * 1024

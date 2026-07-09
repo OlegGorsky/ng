@@ -3,7 +3,7 @@ set -euo pipefail
 
 PROVIDER_NAME='vibemode'
 BASE_URL='https://api.vibemod.pro/v1'
-DEFAULT_MODEL='gpt-5.4'
+DEFAULT_MODEL='gpt-5.6-terra'
 DEFAULT_REASONING_EFFORT='medium'
 ENV_KEY='CODEX_KEY'
 OPENAI_ENV_KEY='OPENAI_API_KEY'
@@ -28,7 +28,7 @@ usage() {
 
 Опции:
   --non-interactive       Не спрашивать ввод. Нужен ключ в env или существующий auth.json.
-  --model MODEL           Модель Codex для config.toml. По умолчанию: gpt-5.4.
+  --model MODEL           Модель Codex для config.toml. По умолчанию: gpt-5.6-terra.
   --skip-api-check        Записать файлы без проверки /v1/responses.
   --no-image-helper       Не ставить команду responses-image.
   --replace-key           Попросить новый ключ вместо переиспользования auth.json.

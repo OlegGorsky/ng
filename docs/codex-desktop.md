@@ -96,7 +96,7 @@ base_url = "https://api.vibemod.pro/v1"
 requires_openai_auth = true
 ```
 
-По умолчанию используется `gpt-5.6-terra`. Другие текущие модели VibeMode можно выбрать через `--model gpt-5.6-sol` или `--model gpt-5.6-luna`.
+По умолчанию используется `gpt-5.6-terra`. Текущие модели VibeMode для Codex CLI: `gpt-5.4-mini`, `gpt-5.5`, `gpt-5.6-luna`, `gpt-5.6-sol`, `gpt-5.6-terra`. Любую можно выбрать через `--model`.
 
 В `auth.json` записывается или сохраняется:
 

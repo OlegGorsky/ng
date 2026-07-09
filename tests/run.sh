@@ -203,6 +203,8 @@ cat <<'JSON'
 {
   "object": "list",
   "data": [
+    { "id": "gpt-5.4-mini" },
+    { "id": "gpt-5.5" },
     { "id": "gpt-5.6-luna" },
     { "id": "gpt-5.6-sol" },
     { "id": "gpt-5.6-terra" },

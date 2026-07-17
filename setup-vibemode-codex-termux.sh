@@ -502,7 +502,7 @@ test_codex_cli_auth() {
 
   local output status
   set +e
-  output="$(env -u CODEX_KEY -u OPENAI_API_KEY -u CODEX_API_KEY CODEX_HOME="$CODEX_DIR" codex 2>&1 </dev/null)"
+  output="$(env -u CODEX_KEY -u OPENAI_API_KEY -u CODEX_API_KEY CODEX_HOME="$CODEX_DIR" codex login status 2>&1 </dev/null)"
   status="$?"
   set -e
 

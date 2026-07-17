@@ -1162,7 +1162,7 @@ function Test-CodexCliAuth([string]$ApiKey) {
     $previousErrorActionPreference = $ErrorActionPreference
     try {
         $ErrorActionPreference = "Continue"
-        $output = "" | & $codex.Source 2>&1
+        $output = & $codex.Source @("login", "status") 2>&1
     } catch {
         $output = @($_.Exception.Message)
     } finally {

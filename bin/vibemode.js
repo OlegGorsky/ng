@@ -711,7 +711,7 @@ function testCodexCliAuth(paths, key) {
   delete env[OPENAI_ENV_KEY];
   delete env[CODEX_API_ENV_KEY];
   const command = process.platform === 'win32' ? 'codex.cmd' : 'codex';
-  const result = childProcess.spawnSync(command, [], {
+  const result = childProcess.spawnSync(command, ['login', 'status'], {
     input: '',
     encoding: 'utf8',
     env,

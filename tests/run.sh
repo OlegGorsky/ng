@@ -126,11 +126,19 @@ make_fake_codex() {
   local bin_dir="$1"
   cat > "$bin_dir/codex" <<'FAKE_CODEX'
 #!/usr/bin/env bash
+if [[ -n "${CODEX_TEST_ARGS_FILE:-}" ]]; then
+  printf '%s\n' "$*" >> "$CODEX_TEST_ARGS_FILE"
+fi
 if [[ "${1:-}" == '--version' ]]; then
   printf 'codex-cli 0.140.0\n'
   exit 0
 fi
-printf 'fake codex %s\n' "$*"
+if [[ "$*" == 'login status' ]]; then
+  printf 'Logged in using an API key\n'
+  exit 0
+fi
+printf 'unexpected interactive Codex launch: %s\n' "$*" >&2
+exit 42
 FAKE_CODEX
   chmod +x "$bin_dir/codex"
 }
@@ -375,6 +383,7 @@ run_setup() {
   local home_dir="$1"
   local bin_dir="$2"
   CODEX_KEY='test-api-key' \
+    CODEX_TEST_ARGS_FILE="${CODEX_TEST_ARGS_FILE:-}" \
     HOME="$home_dir" \
     CODEX_HOME="$home_dir/.codex" \
     PATH="$bin_dir:$PATH" \
@@ -410,6 +419,7 @@ test_npm_cli_package_metadata() {
   assert_not_contains_file "$PACKAGE_JSON" '"scripts",' 'package does not include whole scripts directory'
   assert_contains "$CLI" "input: [{ role: 'user', content: 'ping' }]" 'npm CLI checks Responses API with list input'
   assert_contains "$CLI" 'stream: true' 'npm CLI checks Responses API with streaming enabled'
+  assert_contains "$CLI" "spawnSync(command, ['login', 'status']" 'npm CLI checks auth without opening the Codex TUI'
   assert_contains "$CLI" 'function persistWindowsUserEnvironment' 'npm CLI can persist Windows User env'
   assert_contains "$CLI" 'powershell.exe' 'npm CLI uses PowerShell for Windows User env'
   assert_contains "$CLI" 'SetEnvironmentVariable($name, [string]$payload.$name, "User")' 'npm CLI persists Codex env for new Windows sessions'
@@ -588,11 +598,19 @@ test_creates_files_and_checks_responses_api() {
   make_fake_curl "$bin"
   cat > "$bin/codex" <<'FAKE_CODEX'
 #!/usr/bin/env bash
-printf 'codex-cli 0.140.0\n'
+printf '%s\n' "$*" >> "$CODEX_TEST_ARGS_FILE"
+if [[ "${1:-}" == '--version' ]]; then
+  printf 'codex-cli 0.140.0\n'
+elif [[ "$*" == 'login status' ]]; then
+  printf 'Logged in using an API key\n'
+else
+  printf 'unexpected interactive Codex launch: %s\n' "$*" >&2
+  exit 42
+fi
 FAKE_CODEX
   chmod +x "$bin/codex"
 
-  if ! output="$(run_setup "$tmp/home" "$bin")"; then
+  if ! output="$(CODEX_TEST_ARGS_FILE="$tmp/codex-args" run_setup "$tmp/home" "$bin")"; then
     printf '%s\n' "$output" >&2
     fail 'script exits successfully with env API key'
     rm -rf "$tmp"
@@ -623,6 +641,8 @@ FAKE_CODEX
   assert_contains "$tmp/home/.codex/vibemode.env" "export CODEX_HOME='$tmp/home/.codex'" 'writes shell CODEX_HOME export'
   assert_contains "$tmp/home/.profile" '.codex/vibemode.env' 'profile sources shell env file'
   assert_not_contains_text "$output" 'test-api-key' 'does not print API key'
+  assert_contains "$tmp/codex-args" 'login status' 'Termux setup uses non-interactive Codex auth status'
+  assert_not_contains_file "$tmp/codex-args" '--yolo' 'Termux setup does not start a Codex model turn'
   assert_not_contains_text "$output" 'Authorization: Bearer' 'does not print bearer header'
   assert_not_contains_text "$output" 'gho_' 'does not print unrelated tokens'
   if [[ "$output" == *'Одной строкой:'* && "$output" == *'source '* && "$output" == *'&& codex --yolo'* ]]; then
@@ -1203,6 +1223,8 @@ test_desktop_powershell_static_checks() {
   assert_contains "$DESKTOP_PS" 'Codex auth.json не содержит OPENAI_API_KEY' 'PowerShell setup explains broken Codex auth format'
   assert_contains "$DESKTOP_PS" 'function Get-CodexCommand' 'PowerShell setup reuses Codex CLI command lookup'
   assert_contains "$DESKTOP_PS" 'function Test-CodexCliAuth' 'PowerShell setup smoke-tests Codex CLI auth'
+  assert_contains "$DESKTOP_PS" '$output = & $codex.Source @("login", "status") 2>&1' 'PowerShell setup checks auth without opening the Codex TUI'
+  assert_not_contains_file "$DESKTOP_PS" '$output = "" | & $codex.Source 2>&1' 'PowerShell setup does not launch interactive Codex during auth check'
   assert_contains "$DESKTOP_PS" '$savedApiEnv[$name] = [Environment]::GetEnvironmentVariable($name, "Process")' 'PowerShell setup saves API env before smoke-check'
   assert_contains "$DESKTOP_PS" 'Remove-Item -Path ("Env:" + $name) -ErrorAction SilentlyContinue' 'PowerShell setup clears API env during smoke-check'
   assert_contains "$DESKTOP_PS" 'Set-Item -Path ("Env:" + $name) -Value $savedApiEnv[$name]' 'PowerShell setup restores API env after smoke-check'

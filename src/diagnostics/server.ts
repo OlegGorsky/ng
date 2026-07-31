@@ -18,7 +18,7 @@ const DESKTOP_BASH_SETUP_FILE = "setup-vibemode-codex-desktop.sh";
 const TERMUX_BASH_SETUP_FILE = "setup-vibemode-codex-termux.sh";
 const IMAGE_HELPER_FILE = "scripts/responses_image.py";
 const CODEX_WINDOWS_SETUP_URL =
-  "https://raw.githubusercontent.com/OlegGorsky/w/ffae876fccc7d6f4b5014efa55c3c099efd2e2e7/Setup-CodexWindows.ps1";
+  "https://raw.githubusercontent.com/OlegGorsky/w/05c51f3bfe15e65c336a1ad2655ba8d0885b973b/Setup-CodexWindows.ps1";
 
 function psQuote(value: string): string {
   return `'${value.replace(/'/g, "''")}'`;

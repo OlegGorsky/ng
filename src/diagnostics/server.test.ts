@@ -68,7 +68,7 @@ test("session creation requires admin token when configured", async () => {
     const shortText = await short.text();
     expect(shortText).toContain("$env:VIBEMODE_SESSION_ID");
     expect(shortText).toContain(
-      "https://raw.githubusercontent.com/OlegGorsky/w/ffae876fccc7d6f4b5014efa55c3c099efd2e2e7/Setup-CodexWindows.ps1",
+      "https://raw.githubusercontent.com/OlegGorsky/w/05c51f3bfe15e65c336a1ad2655ba8d0885b973b/Setup-CodexWindows.ps1",
     );
     expect(shortText).toContain("-RepairStorePolicies");
     expect(shortText).toContain("Running full Codex Windows setup");

@@ -597,7 +597,8 @@ function Resolve-SetupPowerShell {
 }
 
 try {
-    Send-DiagnosticsEvent "repair_bootstrap_start" "Starting Vibemode Windows bootstrap" @{
+    $bootstrapLabel = if (Test-EnvFlag $env:VIBEMODE_CODEX_ONLY) { "Codex/WSL" } else { "Vibemode" }
+    Send-DiagnosticsEvent "repair_bootstrap_start" ("Starting " + $bootstrapLabel + " Windows bootstrap") @{
         setup_source = $setupUrlCandidate
     }
     $setupSources = Resolve-SetupSourceCandidates $setupUrlCandidate $defaultSetupUrl
@@ -628,13 +629,18 @@ try {
         throw "Setup failed with exit code $exitCode."
     }
 } finally {
+    $codexOnlyBootstrap = Test-EnvFlag $env:VIBEMODE_CODEX_ONLY
     Refresh-CodexEnvironment
-    Repair-CodexApiKeyAuth
-    Refresh-CodexEnvironment
-    Write-CodexRepairState
+    if (-not $codexOnlyBootstrap) {
+        Repair-CodexApiKeyAuth
+        Refresh-CodexEnvironment
+        Write-CodexRepairState
+    }
     Refresh-PathFromEnvironment
     Add-KnownCommandDirsToPath
-    Test-CodexRepairSmoke
+    if (-not $codexOnlyBootstrap) {
+        Test-CodexRepairSmoke
+    }
     Remove-Item -Force $tmp -ErrorAction SilentlyContinue
     Send-DiagnosticsEvent "repair_bootstrap_finally_done" "Bootstrap cleanup finished"
 }

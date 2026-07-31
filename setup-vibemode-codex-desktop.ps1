@@ -6,6 +6,7 @@
     [switch]$NoWsl,
     [switch]$ReplaceKey,
     [switch]$KeyFromClipboard,
+    [switch]$CodexOnly,
     [string]$WslDistro,
     [string]$ImageHelperPath
 )
@@ -1342,15 +1343,108 @@ function Test-WslReady {
     return ($LASTEXITCODE -eq 0 -and ($output -join "") -eq "ready")
 }
 
+function Invoke-WslBestEffort([string[]]$Arguments, [string]$Label) {
+    $wsl = Get-WslCommand
+    if (-not $wsl) {
+        return $false
+    }
+
+    $previousErrorActionPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = "Continue"
+        $output = & $wsl.Source @Arguments 2>&1
+    } catch {
+        Warn ($Label + " не удалось: " + $_.Exception.Message)
+        return $false
+    } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+
+    if ($LASTEXITCODE -eq 0) {
+        return $true
+    }
+    $details = (($output | Out-String).Trim())
+    if ($details) {
+        Warn ($Label + " не удалось: " + $details)
+    } else {
+        Warn ($Label + " не удалось: exit code " + $LASTEXITCODE)
+    }
+    return $false
+}
+
+function Enable-WslWindowsFeatures {
+    $dism = Get-Command dism.exe -ErrorAction SilentlyContinue
+    if (-not $dism) {
+        return
+    }
+
+    foreach ($feature in @("Microsoft-Windows-Subsystem-Linux", "VirtualMachinePlatform")) {
+        $args = @("/online", "/enable-feature", "/featurename:$feature", "/all", "/norestart")
+        $previousErrorActionPreference = $ErrorActionPreference
+        try {
+            $ErrorActionPreference = "Continue"
+            $output = & $dism.Source @args 2>&1
+        } catch {
+            Warn ("Не удалось включить Windows feature " + $feature + ": " + $_.Exception.Message)
+            continue
+        } finally {
+            $ErrorActionPreference = $previousErrorActionPreference
+        }
+        if ($LASTEXITCODE -eq 0 -or $LASTEXITCODE -eq 3010) {
+            Log "Windows feature включён или уже доступен: $feature"
+        } else {
+            $details = (($output | Out-String).Trim())
+            Warn ("Не удалось включить Windows feature " + $feature + ": " + $details)
+        }
+    }
+}
+
+function Register-WslResumeAfterReboot {
+    $runOncePath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\RunOnce"
+    $command = 'powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$env:VIBEMODE_SKIP_API_CHECK=''1''; irm ''https://install.gorseecode.ru/i'' | iex"'
+    try {
+        New-Item -Path $runOncePath -Force | Out-Null
+        New-ItemProperty -Path $runOncePath -Name "VibemodeCodexWslResume" -Value $command -PropertyType String -Force | Out-Null
+        Log "После следующего входа в Windows setup автоматически продолжит настройку WSL."
+    } catch {
+        Warn ("Не удалось добавить автопродолжение WSL после перезагрузки: " + $_.Exception.Message)
+    }
+}
+
+function Ensure-WslSupport {
+    if ($NoWsl) {
+        return
+    }
+
+    if (Test-WslReady) {
+        return
+    }
+
+    Enable-WslWindowsFeatures
+    Invoke-WslBestEffort @("--update", "--web-download") "WSL update" | Out-Null
+    Invoke-WslBestEffort @("--install", "--no-distribution") "WSL platform install" | Out-Null
+
+    if (-not $WslDistro) {
+        Invoke-WslBestEffort @("--install", "-d", "Ubuntu", "--no-launch") "Ubuntu WSL distro install" | Out-Null
+    }
+
+    if (-not (Test-WslReady)) {
+        Register-WslResumeAfterReboot
+        Warn "WSL ещё не готов. Если Windows запросил перезагрузку, перезагрузи систему. После следующего входа setup попробует продолжить WSL-настройку автоматически; если Ubuntu попросит создать Linux-пользователя, открой Ubuntu один раз и затем повтори Vibemode setup."
+    }
+}
+
 function Install-WslConfig([string]$ApiKey) {
     if ($NoWsl) {
         Log "Настройка WSL пропущена"
         return
     }
 
+    Ensure-WslSupport
+
     $wsl = Get-WslCommand
     if (-not $wsl) {
-        Log "WSL не найден, настройка WSL пропущена"
+        Warn "WSL не найден, настройка WSL пропущена"
         return
     }
 
@@ -1614,6 +1708,22 @@ printf 'home=%s\n' "$HOME"
     } else {
         Warn "Настройка WSL не удалась: $($output -join ' ')"
     }
+}
+
+$codexOnlyMode = $CodexOnly -or (Test-EnvFlag $env:VIBEMODE_CODEX_ONLY)
+if ($codexOnlyMode) {
+    Send-DiagnosticsEvent "setup_start" "Codex/WSL Windows setup started" @{
+        codex_home = $CodexDir
+        home = $HOME
+        userprofile = $env:USERPROFILE
+    }
+    Log "Папка Codex Desktop: $CodexDir"
+    Ensure-WslSupport
+    Install-CodexCli
+    Send-DiagnosticsEvent "setup_done" "Codex/WSL Windows setup done"
+    Log ""
+    Log "Codex/WSL setup готов. Vibemode provider и API key не изменялись."
+    exit 0
 }
 
 $apiKey = Read-ApiKey

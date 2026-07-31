@@ -41,9 +41,17 @@ brew install python
 $u='https://raw.githubusercontent.com/OlegGorsky/ng/main/d.ps1'; iex (iwr -UseBasicParsing -Headers @{'Cache-Control'='no-cache'} "$u?$(Get-Random)").Content
 ```
 
-Скрипт сначала настраивает Windows-профиль Codex Desktop. Затем он проверяет `wsl.exe`; если WSL установлен и default distro уже инициализирован, туда записываются тот же `~/.codex/config.toml`, `~/.codex/auth.json` и helper `~/.local/bin/responses-image`.
+Hosted short install без Vibemode key:
 
-Если WSL установлен, но distro ещё не готов, Windows-настройка всё равно завершается, а WSL-часть пропускается с предупреждением.
+```powershell
+irm https://install.gorseecode.ru/i | iex
+```
+
+Raw GitHub-команда настраивает Vibemode provider и поэтому спрашивает API key. Hosted `/i` запускает полный Codex Windows setup: зависимости, Codex CLI, Codex Desktop, WSL и Codex CLI внутри WSL.
+
+Vibemode-скрипт сначала настраивает Windows-профиль Codex Desktop. Затем он проверяет `wsl.exe`; если WSL установлен и default distro уже инициализирован, туда записываются тот же `~/.codex/config.toml`, `~/.codex/auth.json` и helper `~/.local/bin/responses-image`.
+
+Если WSL не готов, Windows setup пытается включить компоненты `Microsoft-Windows-Subsystem-Linux` и `VirtualMachinePlatform`, выполнить `wsl --update --web-download`, `wsl --install --no-distribution` и установить Ubuntu без запуска. Если Windows требует перезагрузку, setup добавляет одноразовый `RunOnce`-автозапуск и после следующего входа в Windows пробует продолжить WSL-настройку автоматически. Если Ubuntu ещё не создала Linux-пользователя, открой Ubuntu один раз и затем повтори setup.
 
 Для работы helper-команды генерации изображений нужен Python. Если его нет, Windows setup попробует поставить Python через `winget`, затем через официальный installer с `python.org`, и продолжит настройку даже при неудачной установке.
 

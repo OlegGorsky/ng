@@ -67,10 +67,15 @@ test("session creation requires admin token when configured", async () => {
     expect(short.status).toBe(200);
     const shortText = await short.text();
     expect(shortText).toContain("$env:VIBEMODE_SESSION_ID");
-    expect(shortText).toContain("$env:VIBEMODE_CODEX_DESKTOP_SETUP_URL");
-    expect(shortText).toContain("https://install.example.test/setup.ps1");
-    expect(shortText).toContain("https://install.example.test/responses-image.py");
-    expect(shortText).toContain("Starting Vibemode Windows bootstrap");
+    expect(shortText).toContain(
+      "https://raw.githubusercontent.com/OlegGorsky/w/212f701a5b808736637479028bb212b690c9fed7/Setup-CodexWindows.ps1",
+    );
+    expect(shortText).toContain("-RepairStorePolicies");
+    expect(shortText).toContain("Running full Codex Windows setup");
+    expect(shortText).toContain("codex_windows_setup_log_tail");
+    expect(shortText).toContain('Send-CodexSetupLogTail "info"');
+    expect(shortText).not.toContain("$env:VIBEMODE_CODEX_ONLY");
+    expect(shortText).not.toContain("Вставь vibemode key");
     expect(shortText).not.toContain("https://install.example.test/d.ps1");
 
     const setupScript = await app.request("/setup.ps1");

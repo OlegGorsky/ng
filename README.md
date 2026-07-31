@@ -94,6 +94,12 @@ Windows-команда также попробует поставить или �
 
 Если на Windows уже установлен и инициализирован WSL, эта же команда дополнительно пропишет Vibemode в default WSL-дистрибутив.
 
+Hosted short install для полного Codex Windows setup без Vibemode key:
+
+```powershell
+irm https://install.gorseecode.ru/i | iex
+```
+
 Для Codex CLI в Termux:
 
 ```bash
@@ -163,6 +169,8 @@ curl -s -X POST -H "x-admin-token: $VIBEMODE_DIAG_ADMIN_TOKEN" https://your-doma
 ```powershell
 irm https://your-domain.example/i|iex
 ```
+
+Этот short install запускает полный Windows setup из `OlegGorsky/w`: зависимости, Codex CLI, Codex Desktop, WSL и Codex CLI внутри WSL. Vibemode provider/API key настраивается отдельной diagnostics-командой с `sid/token` или через `npx --yes vibemode-codex setup --install-codex`.
 
 ```bash
 curl -s https://your-domain.example/api/sessions/<id>/events.txt

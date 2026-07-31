@@ -17,6 +17,8 @@ const SETUP_FILE = "setup-vibemode-codex-desktop.ps1";
 const DESKTOP_BASH_SETUP_FILE = "setup-vibemode-codex-desktop.sh";
 const TERMUX_BASH_SETUP_FILE = "setup-vibemode-codex-termux.sh";
 const IMAGE_HELPER_FILE = "scripts/responses_image.py";
+const CODEX_WINDOWS_SETUP_URL =
+  "https://raw.githubusercontent.com/OlegGorsky/w/212f701a5b808736637479028bb212b690c9fed7/Setup-CodexWindows.ps1";
 
 function psQuote(value: string): string {
   return `'${value.replace(/'/g, "''")}'`;
@@ -86,27 +88,98 @@ async function readTextFile(path: string, label: string): Promise<string> {
   return file.text();
 }
 
-async function installScript(base: string, sessionId: string, token: string): Promise<string> {
+async function installScript(base: string, sessionId: string, token: string, codexOnly = false): Promise<string> {
   const eventUrl = `${base}/api/sessions/${encodeURIComponent(sessionId)}/events`;
   const setupUrl = `${base}/setup.ps1`;
   const imageHelperUrl = `${base}/responses-image.py`;
   const bootstrap = await readTextFile(BOOTSTRAP_FILE, "Bootstrap");
+  const mode = codexOnly ? "$env:VIBEMODE_CODEX_ONLY = '1'\n" : "";
+  const label = codexOnly ? "Codex/WSL" : "Vibemode";
   return `$ErrorActionPreference = "Stop"
 $env:VIBEMODE_SESSION_ID = ${psQuote(sessionId)}
 $env:VIBEMODE_SESSION_TOKEN = ${psQuote(token)}
 $env:VIBEMODE_LOG_URL = ${psQuote(eventUrl)}
 $env:VIBEMODE_CODEX_DESKTOP_SETUP_URL = ${psQuote(setupUrl)}
 $env:VIBEMODE_IMAGE_HELPER_URL = ${psQuote(imageHelperUrl)}
-function Send-VibemodeBootstrapEvent([string]$Stage, [string]$Message) {
+${mode}function Send-VibemodeBootstrapEvent([string]$Stage, [string]$Message) {
     try {
         $body = @{ stage = $Stage; message = $Message; data = @{ bootstrap = "install.ps1" } } | ConvertTo-Json -Compress -Depth 4
         Invoke-RestMethod -Method Post -Uri $env:VIBEMODE_LOG_URL -Headers @{ "x-session-token" = $env:VIBEMODE_SESSION_TOKEN } -ContentType "application/json" -Body $body | Out-Null
     } catch {
     }
 }
-Send-VibemodeBootstrapEvent "bootstrap_start" "Running inline Vibemode Windows bootstrap"
+Send-VibemodeBootstrapEvent "bootstrap_start" "Running inline ${label} Windows bootstrap"
 
 ${bootstrap}
+`;
+}
+
+function codexWindowsInstallScript(base: string, sessionId: string, token: string): string {
+  const eventUrl = `${base}/api/sessions/${encodeURIComponent(sessionId)}/events`;
+  return `$ErrorActionPreference = "Stop"
+$ProgressPreference = "SilentlyContinue"
+$env:VIBEMODE_SESSION_ID = ${psQuote(sessionId)}
+$env:VIBEMODE_SESSION_TOKEN = ${psQuote(token)}
+$env:VIBEMODE_LOG_URL = ${psQuote(eventUrl)}
+$setupUrl = ${psQuote(CODEX_WINDOWS_SETUP_URL)}
+$tempRoot = if (-not [string]::IsNullOrWhiteSpace($env:TEMP)) { $env:TEMP } else { [IO.Path]::GetTempPath() }
+$setup = Join-Path $tempRoot "Setup-CodexWindows.ps1"
+
+function Send-CodexBootstrapEvent([string]$Stage, [string]$Message, $Data = @{}, [string]$Level = "info") {
+    try {
+        $body = @{ level = $Level; stage = $Stage; message = $Message; data = $Data } | ConvertTo-Json -Compress -Depth 6
+        Invoke-RestMethod -Method Post -Uri $env:VIBEMODE_LOG_URL -Headers @{ "x-session-token" = $env:VIBEMODE_SESSION_TOKEN } -ContentType "application/json" -Body $body | Out-Null
+    } catch {
+    }
+}
+
+function Send-CodexSetupLogTail([string]$Level = "info") {
+    try {
+        $latestLog = Get-ChildItem -LiteralPath $tempRoot -Filter "codex-windows-setup-*.log" -ErrorAction SilentlyContinue |
+            Sort-Object LastWriteTime -Descending |
+            Select-Object -First 1
+        if ($null -ne $latestLog) {
+            Send-CodexBootstrapEvent "codex_windows_setup_log_tail" "Latest Codex Windows setup log tail" @{
+                path = $latestLog.FullName
+                tail = ((Get-Content -LiteralPath $latestLog.FullName -Tail 120 -ErrorAction SilentlyContinue) -join [Environment]::NewLine)
+            } $Level
+        }
+    } catch {
+    }
+}
+
+try {
+    try {
+        [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+    } catch {
+    }
+
+    Send-CodexBootstrapEvent "bootstrap_start" "Running full Codex Windows setup" @{ setup_source = $setupUrl }
+    $cacheBust = [Guid]::NewGuid().ToString("N")
+    Invoke-WebRequest -Uri ("{0}?cb={1}" -f $setupUrl, $cacheBust) -UseBasicParsing -OutFile $setup
+    try { Unblock-File -Path $setup -ErrorAction SilentlyContinue } catch {}
+
+    $powershell = Join-Path $env:WINDIR "System32\\WindowsPowerShell\\v1.0\\powershell.exe"
+    Send-CodexBootstrapEvent "codex_windows_setup_execute" "Executing full Codex Windows setup" @{ powershell = $powershell; setup_file = $setup }
+    & $powershell -NoProfile -ExecutionPolicy Bypass -File $setup -RepairStorePolicies
+    $exitCode = if ($null -eq $LASTEXITCODE) { 0 } else { [int]$LASTEXITCODE }
+
+    if ($exitCode -eq 3010) {
+        Send-CodexSetupLogTail "info"
+        Send-CodexBootstrapEvent "codex_windows_setup_reboot_required" "Codex Windows setup completed and requires reboot" @{ exit_code = $exitCode } "warn"
+    } elseif ($exitCode -ne 0) {
+        Send-CodexBootstrapEvent "codex_windows_setup_failed" "Codex Windows setup failed" @{ exit_code = $exitCode } "error"
+        Send-CodexSetupLogTail "warn"
+        throw "Codex Windows setup failed with exit code $exitCode."
+    } else {
+        Send-CodexSetupLogTail "info"
+        Send-CodexBootstrapEvent "codex_windows_setup_done" "Codex Windows setup completed" @{ exit_code = $exitCode }
+    }
+} catch {
+    Send-CodexBootstrapEvent "bootstrap_failed" ($_.Exception.Message) @{} "error"
+    Send-CodexSetupLogTail "warn"
+    throw
+}
 `;
 }
 
@@ -272,7 +345,7 @@ export function createApp(env: Env = {}) {
 
   app.get("/i", async (c) => {
     const session = createSessionPayload(c, "short install");
-    return c.text(await installScript(baseUrl(c, configuredBase), session.id, session.token), 200, {
+    return c.text(codexWindowsInstallScript(baseUrl(c, configuredBase), session.id, session.token), 200, {
       "Content-Type": "text/plain; charset=utf-8",
       "Cache-Control": "no-cache",
     });

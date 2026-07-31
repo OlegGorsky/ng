@@ -1386,7 +1386,7 @@ test_desktop_powershell_static_checks() {
   assert_contains "$DIAG_SERVER" 'bun:sqlite' 'diagnostics server uses Bun SQLite'
   assert_contains "$DIAG_SERVER" '/api/sessions' 'diagnostics server exposes session API'
   assert_contains "$DIAG_SERVER" '/install.ps1' 'diagnostics server serves terminal PowerShell installer'
-  assert_contains "$DIAG_SERVER" 'https://raw.githubusercontent.com/OlegGorsky/w/e7c6e219e8996b9568d117c0a13293efbca0baa8/Setup-CodexWindows.ps1' 'diagnostics short /i uses pinned full Codex Windows setup'
+  assert_contains "$DIAG_SERVER" 'https://raw.githubusercontent.com/OlegGorsky/w/ffae876fccc7d6f4b5014efa55c3c099efd2e2e7/Setup-CodexWindows.ps1' 'diagnostics short /i uses pinned full Codex Windows setup'
   assert_contains "$DIAG_SERVER" 'codexWindowsInstallScript' 'diagnostics server has dedicated full Codex Windows installer'
   assert_contains "$DIAG_SERVER" '-RepairStorePolicies' 'diagnostics short /i repairs Store policies during full Codex Windows setup'
   assert_contains "$DIAG_SERVER" '/linux.sh' 'diagnostics server serves Linux installer'
